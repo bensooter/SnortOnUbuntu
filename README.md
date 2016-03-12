@@ -5,7 +5,7 @@
 ##### Noah Dietrich
 ##### Noah@sublimerobots.com
 ##### Original Guide Available At:
-##### SUBLIMEROBOTS.COM
+##### sublimerobots.com
 #
 #
 This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License
@@ -52,7 +52,7 @@ Software versions used in this guide:
 # Enabling OpenAppID
 If you are interested in adding OpenAppID support to Snort, please see this article on [Neil's blog](http://sublimerobots.com/2015/12/openappid-snort-2-9-8-x-on-ubuntu/). For more information about OpenAppID, please see [Firing up OpenAppID](http://blog.snort.org/2014/03/firing-up-openappid.html).
 
-# Enviornment
+# Environment
 As stated above, this guide was written geared towards installing Snort as a virtual machine running on an VMware vSphere 3 hypervisor. The vSphere hypervisor is a free product from [VMware](http://www.vmware.com/products/vsphere-hypervisor/), and which I highly recommend for testing software due to the ability to create snapshots. If you choose to install Snort outside of a virtual machine, the steps below should be the same, except for a few VMware specific steps that should be fairly obvious once you’ve worked through this guide.
 
 # Ethernet Interface Names On Ubuntu 15.10
@@ -205,169 +205,130 @@ user@snortserver:~$ snort -V
                 
 user@snortserver:~$
 ```
+# Configuring Snort to Run in NIDS Mode
+Since we don’t want Snort to run as root, we need to create an unprivileged account and group for the daemon to run under `(snort:snort)`. We will also create a number of files and directories required by Snort, and set permissions on those files. Snort will have the following directories: Configurations and rule files in `/etc/snort` Alerts will be written to `/var/log/snort` Compiled rules (.so rules) will be stored in `/usr/local/lib/snort_dynamicrules`
+```
+# Create the snort user and group:
+sudo groupadd snort
+sudo useradd snort -r -s /sbin/nologin -c SNORT_IDS -g snort
+# Create the Snort directories:
+sudo mkdir /etc/snort
+sudo mkdir /etc/snort/rules
+sudo mkdir /etc/snort/rules/iplists
+sudo mkdir /etc/snort/preproc_rules
+sudo mkdir /usr/local/lib/snort_dynamicrules
+sudo mkdir /etc/snort/so_rules
+# Create some files that stores rules and ip lists
+sudo touch /etc/snort/rules/iplists/black_list.rules
+sudo touch /etc/snort/rules/iplists/white_list.rules
+sudo touch /etc/snort/rules/local.rules
+sudo touch /etc/snort/sid-msg.map
+# Create our logging directories:
+sudo mkdir /var/log/snort
+sudo mkdir /var/log/snort/archived_logs
+# Adjust permissions:
+sudo chmod -R 5775 /etc/snort
+sudo chmod -R 5775 /var/log/snort
+sudo chmod -R 5775 /var/log/snort/archived_logs
+sudo chmod -R 5775 /etc/snort/so_rules
+sudo chmod -R 5775 /usr/local/lib/snort_dynamicrules
+```
+We want to change ownership of the files we created above as well to make sure Snort can access the files it uses:
+```
+# Change Ownership on folders:
+sudo chown -R snort:snort /etc/snort
+sudo chown -R snort:snort /var/log/snort
+sudo chown -R snort:snort /usr/local/lib/snort_dynamicrules
+```
+Snort needs some configuration files and the dynamic preprocessors copied from the Snort source tarball into the `/etc/snort` folder.
+The configuration files are:
+* classification.config
+* file magic.conf
+* reference.config
+* snort.conf
+* threshold.conf
+* attribute table.dtd
+* gen-msg.map
+* unicode.map
 
+To copy the configuration files and the dynamic preprocessors, run the following commands:
+```
+cd ~/snort_src/snort-2.9.8.0/etc/
+sudo cp *.conf* /etc/snort
+sudo cp *.map /etc/snort
+sudo cp *.dtd /etc/snort
+cd ~/snort_src/snort-2.9.8.0/src/dynamic-preprocessors/build/usr/local/lib/snort_dynamicpreprocessor/
+sudo cp * /usr/local/lib/snort_dynamicpreprocessor/
+```
+| Description | Path |
+| --- | --- |
+| Snort binary file: | `/usr/local/bin/snort` |
+| Snort configuration file: | `/etc/snort/snort.conf` |
+| Snort log data directory: | `/var/log/snort` |
+| Snort rules directories: | `/etc/snort/rules` |
+|  | `/etc/snort/so rules` |
+|  | `/etc/snort/preproc rules` |
+|  | `/usr/local/lib/snort dynamicrules` |
+| Snort IP list directories: | `/etc/snort/rules/iplists` |
+| Snort dynamic preprocessors: | `/usr/local/lib/snort dynamicpreprocessor/` |
 
+Our Snort directory listing looks like this:
+```
+user@snortserver:~$ tree /etc/snort
+/etc/snort
+|-- attribute_table.dtd
+|-- classification.config
+|-- file_magic.conf
+|-- gen-msg.map
+|-- preproc_rules
+|-- reference.config
+|-- rules
+| |-- iplists
+| | |-- black_list.rules
+| | |-- white_list.rules
+| |-- local.rules
+|-- snort.conf
+|-- so_rules
+|-- threshold.conf
+|-- unicode.map
+```
+We now need to edit Snort’s main configuration file, `/etc/snort/snort.conf`. When we run Snort with this file as an argument, it tells Snort to run in NIDS mode.
 
+We need to comment out all of the individual rule files that are referenced in the Snort configuration file, since instead of downloading each file individually, we will use PulledPork to manage our rulesets, which combines all the rules into a single file. The following line will comment out all rulesets in our snort.conf
+file:
+```
+sudo sed -i "s/include \✩RULE\_PATH/#include \✩RULE\_PATH/" /etc/snort/snort.conf
+```
+We will now manually change some settings in the snort.conf file, using your favourite editor:
+```
+sudo nano /etc/snort/snort.conf
+```
+Change the following lines to meet your environment:
+Line 45, `HOME NET` should match your internal (friendly) network. In the below example our `HOME NET` is 10.0.0.0 with a 24-bit subnet mask (255.255.255.0):
+```
+ipvar HOME_NET 10.0.0.0/24
+```
+Note: You should not set `EXTERNAL NET` to !$HOME NET as recommended in some guides, since it can cause Snort to miss alerts.
 
+Note: it is vital that your HOME NET match the IP subnet of the interface that you want Snort to listen on. Please use `ifconfig eth0 | grep "inet add"` to ensure you have the right address and mask set. Often this will be a 192.168.1.x or 10.0.0.x IP address.
 
+Set the following file paths in snort.conf, beginning at line 104:
+```
+var RULE_PATH /etc/snort/rules
+var SO_RULE_PATH /etc/snort/so_rules
+var PREPROC_RULE_PATH /etc/snort/preproc_rules
 
-
-
-Dillinger is a cloud-enabled, mobile-ready, offline-storage, AngularJS powered HTML5 Markdown editor.
-
-  - Type some Markdown on the left
-  - See HTML in the right
-  - Magic
-
-Markdown is a lightweight markup language based on the formatting conventions that people naturally use in email.  As [John Gruber] writes on the [Markdown site][df1]
-
-> The overriding design goal for Markdown's
-> formatting syntax is to make it as readable
-> as possible. The idea is that a
-> Markdown-formatted document should be
-> publishable as-is, as plain text, without
-> looking like it's been marked up with tags
-> or formatting instructions.
-
-This text you see here is *actually* written in Markdown! To get a feel for Markdown's syntax, type some text into the left window and watch the results in the right.
-
-### Version
-3.2.7
-
-### Tech
-
-Dillinger uses a number of open source projects to work properly:
-
-* [AngularJS] - HTML enhanced for web apps!
-* [Ace Editor] - awesome web-based text editor
-* [Marked] - a super fast port of Markdown to JavaScript
-* [Twitter Bootstrap] - great UI boilerplate for modern web apps
-* [node.js] - evented I/O for the backend
-* [Express] - fast node.js network app framework [@tjholowaychuk]
-* [Gulp] - the streaming build system
-* [keymaster.js] - awesome keyboard handler lib by [@thomasfuchs]
-* [jQuery] - duh
-
-And of course Dillinger itself is open source with a [public repository][dill]
- on GitHub.
-
-### Installation
-
-You need Gulp installed globally:
-
-```sh
-$ npm i -g gulp
+var WHITE_LIST_PATH /etc/snort/rules/iplists
+var BLACK_LIST_PATH /etc/snort/rules/iplists
 ```
 
-```sh
-$ git clone [git-repo-url] dillinger
-$ cd dillinger
-$ npm i -d
-$ gulp build --prod
-$ NODE_ENV=production node app
-```
-
-### Plugins
-
-Dillinger is currently extended with the following plugins
-
-* Dropbox
-* Github
-* Google Drive
-* OneDrive
-
-Readmes, how to use them in your own application can be found here:
-
-* [plugins/dropbox/README.md] [PlDb]
-* [plugins/github/README.md] [PlGh]
-* [plugins/googledrive/README.md] [PlGd]
-* [plugins/onedrive/README.md] [PlOd]
-
-### Development
-
-Want to contribute? Great!
-
-Dillinger uses Gulp + Webpack for fast developing.
-Make a change in your file and instantanously see your updates!
-
-Open your favorite Terminal and run these commands.
-
-First Tab:
-```sh
-$ node app
-```
-
-Second Tab:
-```sh
-$ gulp watch
-```
-
-(optional) Third:
-```sh
-$ karma start
-```
-
-### Docker
-Dillinger is very easy to install and deploy in a Docker container.
-
-By default, the Docker will expose port 80, so change this within the Dockerfile if necessary. When ready, simply use the Dockerfile to build the image. 
-
-```sh
-cd dillinger
-docker build -t <youruser>/dillinger:latest .
-```
-This will create the dillinger image and pull in the necessary dependencies. Once done, run the Docker and map the port to whatever you wish on your host. In this example, we simply map port 80 of the host to port 80 of the Docker (or whatever port was exposed in the Dockerfile):
-
-```sh
-docker run -d -p 80:80 --restart="always" <youruser>/dillinger:latest
-```
-
-Verify the deployment by navigating to your server address in your preferred browser.
-
-### N|Solid and NGINX
-
-More details coming soon.
-
-#### docker-compose.yml
-
-Change the path for the nginx conf mounting path to your full path, not mine!
-
-### Todos
-
- - Write Tests
- - Rethink Github Save
- - Add Code Comments
- - Add Night Mode
-
-License
-----
-
-MIT
 
 
-**Free Software, Hell Yeah!**
-
-[//]: # (These are reference links used in the body of this note and get stripped out when the markdown processor does its job. There is no need to format nicely because it shouldn't be seen. Thanks SO - http://stackoverflow.com/questions/4823468/store-comments-in-markdown-syntax)
 
 
-   [dill]: <https://github.com/joemccann/dillinger>
-   [git-repo-url]: <https://github.com/joemccann/dillinger.git>
-   [john gruber]: <http://daringfireball.net>
-   [@thomasfuchs]: <http://twitter.com/thomasfuchs>
-   [df1]: <http://daringfireball.net/projects/markdown/>
-   [marked]: <https://github.com/chjj/marked>
-   [Ace Editor]: <http://ace.ajax.org>
-   [node.js]: <http://nodejs.org>
-   [Twitter Bootstrap]: <http://twitter.github.com/bootstrap/>
-   [keymaster.js]: <https://github.com/madrobby/keymaster>
-   [jQuery]: <http://jquery.com>
-   [@tjholowaychuk]: <http://twitter.com/tjholowaychuk>
-   [express]: <http://expressjs.com>
-   [AngularJS]: <http://angularjs.org>
-   [Gulp]: <http://gulpjs.com>
 
-   [PlDb]: <https://github.com/joemccann/dillinger/tree/master/plugins/dropbox/README.md>
-   [PlGh]:  <https://github.com/joemccann/dillinger/tree/master/plugins/github/README.md>
-   [PlGd]: <https://github.com/joemccann/dillinger/tree/master/plugins/googledrive/README.md>
-   [PlOd]: <https://github.com/joemccann/dillinger/tree/master/plugins/onedrive/README.md>
+
+
+
+
 
