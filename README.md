@@ -321,8 +321,61 @@ var PREPROC_RULE_PATH /etc/snort/preproc_rules
 var WHITE_LIST_PATH /etc/snort/rules/iplists
 var BLACK_LIST_PATH /etc/snort/rules/iplists
 ```
+In order to make testing Snort easy, we want to enable the `local.rules` file, where we can add rules that Snort can alert on. Un-comment (remove the hash symbol) from line 545 so it looks like this:
+```
+include $RULE_PATH/local.rules
+```
+Once the configuration file is ready, we will have Snort verify that it is a valid file, and all necessary files it references are correct. We use the `-T` flag to test the configuration file, the `-c` flag to tell Snort which configuration file to use, and `-i` to specify the interface that Snort will listen on (this is a new requirement for the 2.9.8.x version of snort). Run `sudo snort -T -c /etc/snort/snort.conf -i eth0`. Run this command as shown below and look for the following output (only the last few lines of the output are shown
+for clarity):
+```
+user@snortserver:~$ sudo snort -T -i eth0 -c /etc/snort/snort.conf
+(...)
+Snort successfully validated the configuration!
+Snort exiting
+user@snortserver:~$
+```
+**Note for Ubuntu 15.10:** Interface names have changed, and are system specific (no longer listed as ethN). In the above command, you need to replace `eth0` with the name of your interface, as shown with the `ifconfig` command (in my case it is `ens160`).
 
+It is a good idea to scroll up through the output from this command to get a feel for what Snort is loading. A lot of it won’t make sense at this time, but it will become more clear as you work more with Snort. Look for any errors and warnings listed.
+# Writing a Simple Rule to Test Snort Detection
+At this stage, Snort does not have any rules loaded (our rule files referenced in `snort.conf` are empty). You can verify that Snort has not loaded any rules if you scroll up through the output from the previous command and look for: `0 Snort rules read`. To test Snort’s detection abilities, let’s create a simple rule that will cause Snort to generate an alert whenever Snort sees an ICMP “Echo request” or “Echo reply” message, which is easy to generate with the ubiquitous `ping` utility (this makes for easy testing of the rule).
 
+Paste the following single line into the empty local rules file: `/etc/snort/rules/local.rules`:
+```
+alert icmp any any -> ✩HOME_NET any (msg:"ICMP test detected"; GID:1; sid:10000001; rev:001; classtype:icmpevent;)
+```
+Barnyard2 doesn’t read meta-information about alerts from the local.rules file. Without this information, Barnyard2 won’t know any details about the rule that triggered the alert, and will generate non-fatal errors when adding new rules with PulledPork ( done in a later step). To make sure that barnyard2 knows that the rule we created with unique identifier 10000001 has the message ”ICMP Test Detected”, as well as some other information (please see [this blog post](http://blog.snort.org/2013/05/barnyard-v21-13-has-been-released.html) for more information). We add the following line to the `/etc/snort/sid-msg.map` file:
+```
+1 || 10000001 || 001 || icmp-event || 0 || ICMP Test detected || url,tools.ietf.org/html/rfc792
+```
+When you un-commented line 545 above (`include $RULE PATH/local.rules`) you were telling Snort that the `local.rules` file should be loaded by Snort. When Snort loads that file on start-up, it will see the rule you created, and use that rule on all traffic the interface sees. In this case, when we created the rule, we told Snort that it should generate an alert when it sees an ICMP ping.
+
+Since we made changes to the Snort configuration, we should test the configuration file again:
+```
+sudo snort -T -c /etc/snort/snort.conf -i eth0
+```
+This time if you scroll up through the output, you will find that one rule (the one we created in `local.rules`, and loaded by the `include` directive in `snort.conf`) has been loaded:
+```
+(...)
++++++++++++++++++++++++++++++++++++++++++++++++++++
+Initializing rule chains...
+1 Snort rules read
+    1 detection rules
+    0 decoder rules
+    0 preprocessor rules
+1 Option Chains linked into 1 Chain Headers
+0 Dynamic rules
++++++++++++++++++++++++++++++++++++++++++++++++++++
++-------------------[Rule Port Counts]---------------------------------------
+|             tcp   udp  icmp    ip
+|       src     0     0     0     0
+|       dst     0     0     0     0
+|       any     0     0     1     0
+|        nc     0     0     1     0
+|       s+d     0     0     0     0
++----------------------------------------------------------------------------
+```
+Now that we know that Snort correctly loads our rule and our configuration, we can start snort in NIDS mode, and tell it to output any alerts right to the console. We will run Snort from the command line, using the following flags:
 
 
 
