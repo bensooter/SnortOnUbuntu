@@ -401,6 +401,148 @@ From another computer, ping the IP address of eth0 on the Snort computer (or alt
 Use `ctrl-c` to stop Snort from running. Note that Snort has saved a copy of this information in `/var/log/snort`, with the name `snort.log.nnnnnnnnn` (the numbers may be different). At this point Snort is running correctly in NIDS mode and generating alerts.
 
 # Installing Barnyard2
+It is resource intensive for Snort to write events in human-readable mode, either to the console or to text files, as done above. Ideally, we would like Snort events to be stored in a MySQL database so we can view, search, and profile the events. To efficiently get Snort events into a MySQL database, we use Barnyard2. We will configure Snort to output events in binary form to a folder, and then have Barnyard2 read those events asynchronously and insert them to our MySQL database.
+
+First install the Barnyard2 pre-requisites:
+```
+sudo apt-get install -y mysql-server libmysqlclient-dev mysql-client autoconf libtool
+```
+The install will prompt you to create a root mysql user password. For the examples below, we will use MySqlROOTpassword. You should choose something different and more secure, and store it safely. We will also be creating a snort MySQL user account, and the password for that account will be MySqlSNORTpassword, please note the difference between these two passwords.
+
+We need to tell snort that it should output it’s alerts in a binary format (to a file) that Barnyard2 can process. To do that, edit the `/etc/snort/snort.conf` file, and after line 521 (the commented line starting with the hash sign) add the following line:
+```
+output unified2: filename snort.u2, limit 128
+```
+So that lines 520 and 521 now looks like:
+```
+# output unified2: filename merged.log, limit 128, nostamp, mpls event types, vlan event types}
+output unified2: filename snort.u2, limit 128
+```
+**Note on Barnyard2 Version:** In the original version of this guide a specific snapshot was used from github: [Barnyard2 version 2.1.14 with commits from Oct 21, 2015]( https://github.com/firnsy/barnyard2/archive/7254c24702392288fe6be948f88afb74040f6dc9.tar.gz). I chose not to use the snapshot and just pull the latest source from the Github repo. If you have issues, you can always come back and use the version I've linked above.
+
+Now download and install Barnyard2 2.1.14 release 336
+```
+cd ~/snort_src
+git clone https://github.com/firnsy/barnyard2.git
+cd barnyard2
+autoreconf -fvi -I ./m4
+```
+Barnyard2 needs access to the dnet.h library, which we installed with the Ubuntu libdumbnet package earlier. However, Barnyard2 expects a different file name for this library. Create a soft link from dnet.h to dubmnet.h so there are no issues:
+```
+sudo ln -s /usr/include/dumbnet.h /usr/include/dnet.h
+sudo ldconfig
+```
+Depending on your OS version (x86 or x86 64), you need to point the install to the correct MySQL library. Run one of the following two lines to configure the build process, depending on your architecture (if you are unsure which architecture you are running, use the `uname -m` command:
+```
+# Choose ONE of these two commands to run
+./configure --with-mysql --with-mysql-libraries=/usr/lib/x86_64-linux-gnu
+./configure --with-mysql --with-mysql-libraries=/usr/lib/i386-linux-gnu
+```
+Now complete the build and install Barnyard2 to `/usr/local/bin/barnyard2`:
+```
+make
+sudo make install
+```
+NOTE: If you get dnet.h errors at the `make` stage, you may need to tell the system where the dnet.h files are. Run the following commands before running `make` again (this has been occasionally reported as an issue):
+
+Once Barnyard2 is installed, the next step is to copy and create some files that Barnyard2 requires to run:
+```
+cd ~/snort_src/barnyard2
+sudo cp etc/barnyard2.conf /etc/snort
+# the /var/log/barnyard2 folder is never used or referenced
+# but barnyard2 will error without it existing
+sudo mkdir /var/log/barnyard2
+sudo chown snort.snort /var/log/barnyard2
+sudo touch /var/log/snort/barnyard2.waldo
+sudo chown snort.snort /var/log/snort/barnyard2.waldo
+```
+Since Barnyard2 saves alerts to our MySQL database, we need to create that database, as well as a ‘snort’ MySQL user to access that database. Run the following commands to create the database and MySQL user. When prompted for a password, use the `MySqlROOTpassword`. You will also be setting the MySQL snort user password in the fourth mysql command (to `MySqlSNORTpassword`), so change it there as well.
+```
+$ mysql -u root -p
+mysql> create database snort;
+mysql> use snort;
+mysql> source ~/snort_src/barnyard2-2-1.14-336/schemas/create_mysql
+mysql> CREATE USER ✬snort✬@✬localhost✬ IDENTIFIED BY ✬MySqlSNORTpassword✬;
+mysql> grant create, insert, select, delete, update on snort.* to ✬snort✬@✬localhost✬;
+mysql> exit
+```
+We need to tell Barnyard2 how to connect to the MySQL database. Edit `/etc/snort/barnyard2.conf`, and at the end of the file add this line (changing password to the one you created above):
+```
+output database: log, mysql, user=snort password=MySqlSNORTpassword dbname=snort host=localhost
+```
+Since the password is stored in cleartext in the `barnyard2.conf` file, we should prevent other users from reading it:
+```
+sudo chmod o-r /etc/snort/barnyard2.conf
+```
+Now we want to test that Snort is writing events to the correct binary log file, and that Barnyard2 is reading those logs and writing the events to our MySQL database. We could just start both programs up in daemon mode and generate some events by pinging the interface (triggering the rule we created earlier), but it’s better to test one portion at a time.
+
+Run Snort in alert mode (the command we run below is how Snort will normally be run when we set it up as a daemon, except we aren’t using the `-D` flag which causes it to run as a daemon).
+```
+sudo /usr/local/bin/snort -q -u snort -g snort -c /etc/snort/snort.conf -i eth0
+```
+Ping the interface eth0 from another computer, you won’t see any output on the screen because Snort wasn’t started with the `-A console` flag like before. Once the ping stops, type `ctrl-c` to stop Snort. you should see a new file in the `/var/log/snort` directory with following name: `snort.u2.nnnnnnnnnn` (the numbers will be different because they are based on the current time. The `snort.log.nnnnnnnnnn` is the output file we created when we first tested Snort. You can delete that file if you want:
+```
+user@snortserver:/var/log/snort✩ ls -l /var/log/snort/
+total 12
+drwsrwxr-t 2 snort snort 4096 Nov 7 14:48 archived_logs
+-rw-r--r-- 1 snort snort 0 Nov 7 19:53 barnyard2.waldo
+-rw------- 1 snort snort 708 Nov 7 14:53 snort.log.1446904397
+-rw------- 1 snort snort 1552 Nov 7 19:56 snort.u2.1446922585
+```
+We now run Barnyard2 and tell it to process the events in `snort.u2.nnnnnnnnnn` and load them into the Snort database. We use the following flags with Barnyard2:
+| Flag | Description |
+| --- | --- |
+| `-c /etc/snort/barnyard2.conf` | The path to the `barnyard2.conf` file |
+| `-d /var/log/snort` | The folder to look for Snort output files |
+| `-f snort.u2` | The Filename to look for in the above directory (snort.u2.nnnnnnnnnn) |
+| `-w /var/log/snort/barnyard2.waldo` |  The location of the waldo file (bookmark file) |
+| `-u snort` | Run Barnyard2 as the following user after startup |
+| `-g snort` |  Run Barnyard2 as the following group after startup |
+
+Run Barnyard2 with the following command:
+```
+sudo barnyard2 -c /etc/snort/barnyard2.conf -d /var/log/snort -f snort.u2 -w /var/log/snort/barnyard2.waldo -g snort -u snort
+```
+Barnyard2 will start up (be patient, it can take some time), and then it will process the alerts in the `/var/log/snort/snort.u2.nnnnnnnnnn` file, write them to both the screen and the database, and then wait for more events to appear in the `/var/log/snort` directory. use `Ctrl-c` to stop the process. When Barnyard2 is processing the events, you should see output similar to:
+```
+(...)
+Opened spool file */var/log/snort/snort.u2.1389532785*
+Closing spool file */var/log/snort/snort.u2.1389532785*. Read 8 records
+Opened spool file */var/log/snort/snort.u2.1389535513*
+12/06−12:14:28.908206 [**][1:10000001:1] ICMP test detected [**][Classification: Generic ICMP event] [Priority: 3] {ICMP} 10.0.0.59 −> 10.0.0.105
+12/06−12:14:28.908241 [**][1:10000001:1] ICMP test detected [**][Classification: Generic ICMP event] [Priority: 3] {ICMP} 10.0.0.105 −> 10.0.0.59
+12/06−12:14:29.905893 [**][1:10000001:1] ICMP test detected [**][Classification: Generic ICMP event] [Priority: 3] {ICMP} 10.0.0.59 −> 10.0.0.105
+12/06−12:14:29.905927 [**][1:10000001:1] ICMP test detected [**][Classification: Generic ICMP event] [Priority: 3] {ICMP} 10.0.0.105 −> 10.0.0.59
+Waiting for new data
+ˆC*** Caught Int−Signal
+```
+once you press `Ctrl-c` to stop barnyard2, it will print information about the records it processed.
+
+We now want to check the MySQL database to see if Barnyard2 wrote the events. Run the following
+command to query the MySQL database, you will be prompted for the MySQL Snort user password:
+`MySqlSNORTpassword` (not the MySQL root password):
+```
+mysql -u snort -p -D snort -e "select count(*) from event"
+```
+If successful, you will then get the following output, showing the 8 events written to the database from the ICMP request and reply packets (when you ping from a windows system, it will by default send 4 ICMP messages. If you pinged from another system the count could be different):
+```
++----------+
+| count(*) |
++----------+
+| 8        |
++----------+
+````
+Congratulations, if you have similar output (count greater than 0) as above, then Snort and Barnyard2 are properly installed and configured. We will create startup scripts later to launch both applications as daemons automatically on boot up.
+
+# Installing PulledPork
+PulledPork is a perl script that will download, combine, and install/update snort rulesets from various locations for use by Snort. If you would rather install rulesets manually, see Apendix: Installing Snort Rules Manually.
+
+Install the PulledPork pre-requisites:
+```
+sudo apt-get install -y libcrypt-ssleay-perl liblwp-useragent-determined-perl
+```
+
+
 
 
 
