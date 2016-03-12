@@ -376,6 +376,34 @@ Initializing rule chains...
 +----------------------------------------------------------------------------
 ```
 Now that we know that Snort correctly loads our rule and our configuration, we can start snort in NIDS mode, and tell it to output any alerts right to the console. We will run Snort from the command line, using the following flags:
+| Flag | Description |
+| --- | --- |
+| `-A console` | The ‘console’ option prints fast mode alerts to stdout |
+| `-q` | Quiet mode. Don’t show banner and status report. |
+| `-u snort` | Run Snort as the following user after startup |
+| `-g snort` | Run Snort as the following group after startup |
+| `-c /etc/snort/snort.conf` | The path to our `snort.conf` file |
+| `-i eth0` | The interface to listen on (change to your interface if different) |
+
+Note: If you are running Ubuntu 15.10, remember that your interface name is not eth0.
+```
+$ sudo /usr/local/bin/snort -A console -q -u snort -g snort -c /etc/snort/snort.conf -i eth0
+```
+When you run this line, you will not initially see any output, however Snort is running, processing all packets that arrive on eth0 (or whichever interface you specified with the `-i` flag), comparing them to the rules it has loaded (in this case our single ICMP Ping rule), and will then print all alerts generated when a packet matches our rule to the console.
+
+From another computer, ping the IP address of eth0 on the Snort computer (or alternately ping from the Snort host to another machine, or to its own eth0, but not loopback interface), and you should see console output similar to what is displayed below (in the below example, the Snort server is listening on eth0 with and IP address of 10.0.0.105, and the computer generating the ping is 10.0.0.59).
+```
+12/06−12:14:28.908206 [**] [1:10000001:1] ICMP test detected [**] [Classification: Generic ICMP event] [Priority: 3] {ICMP} 10.0.0.59 −> 10.0.0.105
+12/06−12:14:28.908241 [**] [1:10000001:1] ICMP test detected [**] [Classification: Generic ICMP event] [Priority: 3] {ICMP} 10.0.0.105 −> 10.0.0.59
+12/06−12:14:29.905893 [**] [1:10000001:1] ICMP test detected [**] [Classification: Generic ICMP event] [Priority: 3] {ICMP} 10.0.0.59 −> 10.0.0.105
+ˆC*** Caught Int−Signal
+```
+Use `ctrl-c` to stop Snort from running. Note that Snort has saved a copy of this information in `/var/log/snort`, with the name `snort.log.nnnnnnnnn` (the numbers may be different). At this point Snort is running correctly in NIDS mode and generating alerts.
+
+# Installing Barnyard2
+
+
+
 
 
 
