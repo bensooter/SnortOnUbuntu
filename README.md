@@ -541,11 +541,281 @@ Install the PulledPork pre-requisites:
 ```
 sudo apt-get install -y libcrypt-ssleay-perl liblwp-useragent-determined-perl
 ```
+**Note on PulledPork Version:** The command below installs the latest version of PulledPork off of Github.
 
+Download and install the PulledPork perl script and configuration files:
+```
+cd ~/snort_src
+git clone https://github.com/shirkdog/pulledpork.git
+cd pulledpork
+sudo cp pulledpork.pl /usr/local/bin
+sudo chmod +x /usr/local/bin/pulledpork.pl
+sudo cp etc/*.conf /etc/snort
+```
 
+Check that PulledPork runs by checking the version, using the `-V` flag:
+```
+user@snortserver:~$ /usr/local/bin/pulledpork.pl -V
+PulledPork v0.7.2 - E.Coli in your water bottle!
+user@snortserver:~$
+```
 
+# Configuring PulledPork to Download Rulesets
 
+There are a few rulesets (groups of rules for Snort) that PulledPork can download. You can configure PulledPork to download the free blacklist from Talos and the free community ruleset from Snort without creating a free snort.org account. However, if you want to download the regular rules and documentation for those rules, you need to create a free account on http://snort.org in order to get a unique Oinkcode that will allow you to download these newer rulesets.
 
+I recommend you create a snort.org account and get an oinkcode before continuing. Keep this oinkcode private.
+
+Configure PulledPork by editing `/etc/snort/pulledpork.conf` with the following command:
+```
+sudo vi /etc/snort/pulledpork.conf
+```
+Anywhere you see `<oinkcode>` enter the oinkcode you received from snort.org (if you didn’t get an oinkcode, you’ll need to comment out lines 19 and 26):
+```
+Line 19 & 26: enter your oinkcode where appropriate (or comment out if no oinkcode)
+Line 29: Un-comment for Emerging threats ruleset (not tested with this guide)
+
+Line 74: change to: rule_path=/etc/snort/rules/snort.rules
+Line 89: change to: local_rules=/etc/snort/rules/local.rules
+Line 92: change to: sid_msg=/etc/snort/sid-msg.map
+Line 96: change to: sid_msg_version=2
+
+Line 119: change to: config_path=/etc/snort/snort.conf
+
+Line 133: change to: distro=Ubuntu-12-04
+
+Line 141: change to: black_list=/etc/snort/rules/iplists/black_list.rules
+Line 150: change to: IPRVersion=/etc/snort/rules/iplists
+```
+We want to run PulledPork manually this one time to make sure it works. The following flags are used with PulledPork:
+
+| Flag | Description |
+| --- | --- |
+| `-l` | Write detailed logs to /var/log |
+| `-c /etc/snort/snort.conf` | The path to our pulledpork.conf file |
+
+Run the following command:
+```
+sudo /usr/local/bin/pulledpork.pl -c /etc/snort/pulledpork.conf -l
+```
+PulledPork should finish with output similar to the below (showing the new rules downloaded, in the example below there are over 26,000 new rules downloaded). You can ignore warnings about not running inline, since that doesn’t apply to our configuration:
+```
+(...)
+Rule Stats...
+    New:-------26351
+    Deleted:---0
+    Enabled Rules:----8836
+    Dropped Rules:----0
+    Disabled Rules:---17515
+    Total Rules:------26351
+IP Blacklist Stats...
+    Total IPs:-----9374
+    
+Done
+user@snortserver:~✩
+```
+When PulledPork completes successfully as above, You should now see `snort.rules` in `/etc/snort/rules/`.
+
+Pulled Pork combines all the rules into one file: `/etc/snort/rules/snort.rules`. You need to make sure to add the line: `include $RULE PATH/snort.rules` to the `snort.conf` file, or the PulledPork rules will never be read into memory when Snort starts.
+
+Edit `/etc/snort/snort.conf`, and add to the end of the file (or at line 548 if you want to keep it in a logical place):
+```
+include $RULE_PATH/snort.rules
+```
+Since we’ve modified the Snort configuration file (via the loaded rules file), we should test the Snort configuration file. This will also check the new `snort.rules` file that PulledPork created:
+```
+sudo snort -T -c /etc/snort/snort.conf -i eth0
+```
+You can ignore warnings about flowbits not being checked, as well GID duplicate warnings.
+
+Once that is successful, we want to set PulledPork to run daily. To do this, we add the PulledPork script to root’s crontab:
+```
+sudo crontab -e
+```
+Append the follwoing line in crontab:
+```
+01 04 * * * /usr/local/bin/pulledpork.pl -c /etc/snort/pulledpork.conf -l
+```
+Note: Snort needs to be reloaded to see the new rules. This can be done with `kill -SIGHUP <snort pid>`, or you can restart the snort service (once that’s created below).
+
+Additional note about shared object rules: In addition to regular rules, The above section will download Shared object rules. Shared object rules are also known as ”Shared Object rules”, ”SO rules”, ”pre-compiled rules”, or ”Shared Objects”. These are detection rules that are written in the Shared Object rule language, which is similar to C.
+
+These rules are pre-compiled by the provider of the rules, and allow for more complicated rules, and allow for obfuscation of rules (say to detect attacks that haven’t been patched yet, but the vendor wants to allow detection without revealing the vulnerability). These rules are compiled by the vendor for specific systems. One of these systems is Ubuntu 12, and luckily these rules also work on Ubuntu 14 and 15.
+
+# Creating Startup Scripts
+We want to create startup scripts for Snort and Barnyard2 that will launch the services on system startup. Ubuntu 15 uses the systemd init system, while previous versions of Ubuntu use the Upstart system. If you are installing Snort on Ubuntu 12 or 14, go to the next section. If you are installing Snort on Ubuntu 15, skip the next section and go to systemD Startup Script - Ubuntu 15.
+## Upstart Startup Script - Ubuntu 12 and 14
+We will use Upstart rather than SystemV init scrips to run both Snort and Barnyard2. First we need to create the Snort startup script:
+```
+sudo vi /etc/init/snort.conf
+```
+With the following content (note that we are using the same flags as when we tested above, except for the addition of the `-D` flag, which tells Snort to run as a daemon). Remember to change eth0 to the interface you want to listen on:
+```
+description "Snort NIDS Service"
+stop on runlevel [!2345]
+start on runlevel [2345]
+script
+    exec /usr/local/bin/snort -q -u snort -g snort -c /etc/snort/snort.conf -i eth0 -D
+end script
+```
+Now make the script executable, and tell Upstart that the script exists, and then verify that it is installed:
+```
+user@snortserver:~✩ sudo chmod +x /etc/init/snort.conf
+user@snortserver:~✩ initctl list | grep snort
+snort stop/waiting
+user@snortserver:~✩
+```
+Do the same for our Barnyard2 script (note that the exec command should be one one line). We will add two flags here: `-D` to run as a daemon, and `-a /var/log/snort/archived_logs`, this will move logs that Barnyard2 has processed to the `/var/log/snort/archived/` folder.
+```
+sudo nano /etc/init/barnyard2.conf
+```
+With the following content. Note that the Exec line (between script and end script) should be a single line:
+```
+description "Barnyard2 service"
+stop on runlevel [!2345]
+start on runlevel [2345]
+script
+    exec /usr/local/bin/barnyard2 -c /etc/snort/barnyard2.conf -d /var/log/snort -f snort.u2 -w /var/log/snort /barnyard2.waldo -g snort -u snort -D -a /var/log/snort/archived_logs
+end script
+```
+Make the script executable and check to see that it installed correctly:
+```
+user@snortserver:~$ sudo chmod +x /etc/init/barnyard2.conf
+user@snortserver:~$ initctl list | grep barnyard
+barnyard2 stop/waiting
+user@snortserver:~$
+```
+Reboot the computer and check that both services are started:
+```
+user@snortserver:~$ service snort status
+snort start/running, process 1116
+user@snortserver:~$ service barnyard2 status
+barnyard2 start/running, process 1109
+user@snortserver:~$
+```
+f Barnyard2 does not startup, you may need to delete then re-create the Snort database. Follow the instructions in Apendix: Troubleshooting Barnyard2 if this is needed.
+
+Skip the next section (since you aren’t installing systemD daemons) and go to Snorby - A Web GUI for Snort.
+
+## systemD Startup Script - Ubuntu 15
+Ubuntu 15 has moved to systemD for services / daemons. For more information about creating and managing systemD servcies, please see [this](https://www.digitalocean.com/community/tutorials/how-to-use-systemctl-to-manage-systemd-services-and-units) excellent article.
+
+To create the Snort systemD service, use an editor to create a service file:
+```
+sudo nano /lib/systemd/system/snort.service
+```
+with the following content (change eth0 if different on your system):
+```
+[Unit]
+Description=Snort NIDS Daemon
+After=syslog.target network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/snort -q -u snort -g snort -c /etc/snort/snort.conf -i eth0
+
+[Install]
+WantedBy=multi-user.target
+```
+Now we tell systemD that the service should be started at boot:
+```
+sudo systemctl enable snort
+```
+finally, we want to start the service:
+```
+sudo systemctl start snort
+```
+to check that the service is running:
+```
+systemctl status snort
+```
+Next, create the Barnyard2 systemd service. We will add two flags here: `-D` to run as a daemon, and `-a /var/log/snort/archived_logs`, this will move logs that Barnyard2 has processed to the `/var/log/snort/archived/` folder. Use an editor to create a service file:
+```
+sudo nano /lib/systemd/system/barnyard2.service
+```
+with the following content ( the exec content line should be one line, through `...archived_logs`):
+```
+[Unit]
+Description=Barnyard2 Daemon
+After=syslog.target network.target
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/barnyard2 -c /etc/snort/barnyard2.conf -d /var/log/snort -f snort.u2 -q -w /var/log/ snort/barnyard2.waldo -g snort -u snort -D -a /var/log/snort/archived_logs
+[Install]
+WantedBy=multi-user.target
+```
+Now we tell systemD that the service should be started at boot:
+```
+sudo systemctl enable barnyard2
+```
+finally, we want to start the service:
+```
+sudo systemctl start barnyard2
+```
+to check that the service is running:
+```
+systemctl status barnyard2
+```
+Reboot and verify that both services start correctly.
+
+# Snorby - A Web GUI for Snort
+Snorby is a web GUI for Snort that uses Ruby on Rails to provide a Web-2.0 interface. An alternative to Snorby is [BASE](http://sourceforge.net/projects/secureideas/). BASE has a much simpler interface than Snorby, and is still very popular. Either application will work, although I have chosen Snorby for this install guide. If you would rather use BASE, I have instructions for installing BASE on [Neil's blog](http://sublimerobots.com/2014/12/installing-snort-part-6).
+
+Another GUI option would be [Sguil](http://sourceforge.net/projects/sguil/), or to forward the alerts to a [SIEM](https://en.wikipedia.org/wiki/Security_information_and_event_management) like [Splunk](https://splunkbase.splunk.com/app/340/).
+
+Because of differences between the various versions of Ubuntu, I have broken this installation section into the next three sections, one for each version of Ubuntu. Please follow one of the links below for your Ubuntu distribution:
+
+## Install Snorby 2.6.2 on Ubuntu 12
+Install the Snorby Pre-requisites:
+```
+sudo apt-get install -y imagemagick apache2 libyaml-dev libxml2-dev libxslt-dev git ruby1.9.3
+```
+Snorby installs a number of Ruby gems. To speed up their installation, run the following two commands to prevent the install of documentation when gems are installed:
+```
+echo "gem: --no-rdoc --no-ri" > ~/.gemrc
+sudo sh -c "echo gem: --no-rdoc --no-ri > /etc/gemrc"
+```
+Install the gems required for management and installation:
+```
+# These gems will also install other required gems
+sudo gem install wkhtmltopdf
+sudo gem install bundler
+sudo gem install rails
+sudo gem install rake --version=0.9.2
+```
+Download the 2.6.2 version of Snorby and move it to your webserver directory:
+```
+cd ~/snort_src/
+wget https://github.com/Snorby/snorby/archive/v2.6.2.tar.gz -O snorby-2.6.2.tar.gz
+tar xzvf snorby-2.6.2.tar.gz
+sudo cp -r ./snorby-2.6.2/ /var/www/snorby/
+```
+Install all of the Snorby pre-requisites. Ignore warnings about running bundle as root. If you get connection errors when trying to download gems, just re-run the command until it succeeds.
+```
+cd /var/www/snorby
+sudo bundle install
+```
+Snorby uses `database.yml` to tell it how to connect to the MySQL server. We will copy the example file to the correct location and edit it with our credentials:
+```
+sudo cp /var/www/snorby/config/database.yml.example /var/www/snorby/config/database.yml
+sudo vi /var/www/snorby/config/database.yml
+```
+You need to change the password field to reflect the MySQL root password you set when installing MySQL (`MySqlROOTpassword`). Note that we will change this later after Snorby has setup the databases it needs to use a lower-priviledge MySQL account. The begining of the file should look like this after editing:
+```
+# Snorby Database Configuration
+#
+# Please set your database password/user below
+# NOTE: Indentation is important.
+#
+snorby: &snorby
+    adapter: mysql
+    username: root
+    password: "MySqlROOTpassword" # Example: password: "s3cr3tsauce"
+    host: localhost
+    
+development:
+... and so on
+```
 
 
 
