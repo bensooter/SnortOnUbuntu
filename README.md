@@ -8,9 +8,6 @@
 ##### sublimerobots.com
 #
 #
-This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License
-[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode)
-
 
 # Introduction
 This guide will walk you through installing Snort as a NIDS (network intrusion detection system), with three pieces of additional software to improve the functionality of Snort. This guide is written with the Snort host as a VMware vSphere virtual machine, but can be easily used to install Snort on a physical machine or as a virtual machine on another platform.
@@ -765,7 +762,8 @@ Another GUI option would be [Sguil](http://sourceforge.net/projects/sguil/), or 
 
 Because of differences between the various versions of Ubuntu, I have broken this installation section into the next three sections, one for each version of Ubuntu. Please follow one of the links below for your Ubuntu distribution:
 
-## Install Snorby 2.6.3
+## Install Snorby 2.6.3 on Ubuntu 12 on 14
+
 Install the Snorby Pre-requisites:
 ```
 sudo apt-get install -y imagemagick apache2 libyaml-dev libxml2-dev libxslt-dev
@@ -1022,4 +1020,298 @@ If you have issues, there is a good chance they are related to Barnyard2. Please
 
 If everything is working, go to the next section: Where To Go From Here.
 
-## 
+## Install Snorby 2.6.2 on Ubuntu 15
+
+Install the Snorby Pre-requisites:
+```
+sudo apt-get install -y imagemagick apache2 libyaml-dev libxml2-dev libxslt-dev
+```
+The official Ubuntu repositories only have Ruby 1.9.3.  We need Ruby >= 2.0 for dependency issues with the gems.  So we'll add a brightbox repo and pull the latest version of Ruby at the time of this writing, Ruby 2.3
+
+Install Brightbox Repositories for Ruby.
+```
+sudo apt-add-repository ppa:brightbox/ruby-ng
+sudo apt-get update
+```
+Install Ruby 2.3
+```
+sudo apt-get install ruby2.3 ruby2.3-dev
+```
+Verify that Ruby installed correctly
+```
+$ ruby2.3 -v
+ruby 2.3.0p0 (2015-12-25 revision 53290) [x86_64-linux-gnu]
+```
+
+Snorby installs a number of Ruby gems. To speed up their installation, run the following two commands to prevent the install of documentation when gems are installed:
+```
+echo "gem: --no-rdoc --no-ri" > ~/.gemrc
+sudo sh -c "echo gem: --no-rdoc --no-ri > /etc/gemrc"
+```
+Install the gems required for management and installation:
+```
+# These gems will also install other required gems
+sudo gem install wkhtmltopdf
+sudo gem install bundler
+sudo gem install rails
+sudo gem install rake --version=0.9.2
+```
+Download the 2.6.3 version of Snorby and move it to your webserver directory:
+```
+cd ~/snort_src/
+git clone https://github.com/Snorby/snorby.git
+sudo cp -r ./snorby/ /var/www/snorby/
+```
+Install all of the Snorby pre-requisites. Ignore warnings about running bundle as root. If you get connection errors when trying to download gems, just re-run the command until it succeeds.
+```
+cd /var/www/snorby
+sudo bundle install
+```
+Snorby uses `database.yml` to tell it how to connect to the MySQL server. We will copy the example file to the correct location and edit it with our credentials:
+```
+sudo cp /var/www/snorby/config/database.yml.example /var/www/snorby/config/database.yml
+sudo vi /var/www/snorby/config/database.yml
+```
+You need to change the password field to reflect the MySQL root password you set when installing MySQL (`MySqlROOTpassword`). Note that we will change this later after Snorby has setup the databases it needs to use a lower-priviledge MySQL account. The begining of the file should look like this after editing:
+```
+# Snorby Database Configuration
+#
+# Please set your database password/user below
+# NOTE: Indentation is important.
+#
+snorby: &snorby
+    adapter: mysql
+    username: root
+    password: "MySqlROOTpassword" # Example: password: "s3cr3tsauce"
+    host: localhost
+    
+development:
+... and so on
+```
+Now we need to create the Snorby configuration file (copied from it’s example file), and update it to point to the correct version of wkhtmlpdf:
+```
+sudo cp /var/www/snorby/config/snorby_config.yml.example /var/www/snorby/config/snorby_config.yml
+sudo sed -i s/"\/usr\/local\/bin\/wkhtmltopdf"/"\/usr\/bin\/wkhtmltopdf"/g /var/www/snorby/config/snorby_config.yml
+```
+Now we want to install Snorby. The below command will download the necessary gems and will create a new database called Snorby for use. This can take some time to complete. You can ignore errors about ”Jammit Warning: Asset compression disabled – Java unavailable.”.
+```
+cd /var/www/snorby
+sudo bundle exec rake snorby:setup
+```
+Now we want to edit the MySQL Snorby database to grant access to a lower privilidged user (we don’t want the Snorby application using the root password to interface with the database). Run the following commands to create a new MySQL snorby user with password `PASSWORD123`. You will be prompted for your MySQL root password (`MySqlROOTpassword`) after the first command:
+```
+$ mysql -u root -p
+myslq> create user 'snorby'@'localhost' IDENTIFIED BY 'PASSWORD123';
+myslq> grant all privileges on snorby.* to 'snorby'@'localhost' with grant option;
+myslq> flush privileges;
+myslq> exit
+
+```
+Now that we’ve created a new MySQL snorby user and password, edit Snorby’s database.yml to use the new account:
+```
+sudo vi /var/www/snorby/config/database.yml
+```
+The file should now look like this (note the changes to lines 8 and 9):
+```
+# Snorby Database Configuration
+#
+# Please set your database password/user below
+# NOTE: Indentation is important.
+#
+snorby: &snorby
+	adapter: mysql
+	username: snorby
+	password: "PASSWORD123" # Example: password: "s3cr3tsauce"
+	host: localhost
+
+development:
+	database: snorby
+	<<: *snorby
+
+test:
+	database: snorby
+	<<: *snorby
+
+production:
+	database: snorby
+	<<: *snorby
+```
+Now we are ready to test Snorby. Run Snorby with:
+```
+cd /var/www/snorby/
+sudo bundle exec rails server -e production
+```
+This will start Snorby and will be available on port 3000.
+
+Navigate to <http://<ip_of_snorby_server>:3000> and you should see the logon screen. Don’t log in at this time as we are only testing that the software runs. Use `ctrl-c` to stop the Snorby server.
+
+We will use [Phusion Passenger](https://www.phusionpassenger.com/), an application server module for Apache to launch Snorby. First install pre-requisites:
+```
+sudo apt-get install -y libcurl4-openssl-dev apache2-threaded-dev libaprutil1-dev libapr1-dev
+```
+Install the Passenger gem and the apache module (we don’t install the Ubuntu repository version of Phusion
+Passenger because it doesn’t work well).
+```
+sudo gem install passenger
+sudo passenger-install-apache2-module
+```
+The Phusion Passenger install wizard will start. Un-check the Python language support (we only need Ruby support) using the arrows and space bar, then use enter to continue through the menu options.
+
+After compiling software, the wizard will finally tell you to copy some text to your Apache configuration file. We don’t want to do that because Apache now uses separate files for modules. We do want the information that is printed, we will just use it slightly differently. Copy the six lines of text that are shown, as you’ll need them. Hit enter twice to exit the wizard. My install showed the following (yours may be different):
+```
+LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/apache2/mod_passenger.so
+<IfModule mod_passenger.c>
+	PassengerRoot /var/lib/gems/1.9.1/gems/passenger-5.0.21
+	PassengerDefaultRuby /usr/bin/ruby1.9.1
+</IfModule>
+```
+The first line tells Apache the path to the shared object library to load the Phusion passenger module. We want to create a new file for this line. Create this file:
+```
+sudo vi /etc/apache2/mods-available/passenger.load
+```
+And paste the first line into that file. In my case, I pasted:
+```
+LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/apache2/mod_passenger.so
+```
+The final 4 lines specify the configuration for Phusion Passenger. Create the correct file as follows:
+```
+sudo vi /etc/apache2/mods-available/passenger.conf
+```
+And paste the two content lines in. You do not need the `<IfModule>`tags In my case, I pasted:
+```
+PassengerRoot /var/lib/gems/1.9.1/gems/passenger-5.0.21
+PassengerDefaultRuby /usr/bin/ruby1.9.1
+```
+Note: yes, the lines above say ruby1.9.1, and we did install ruby 1.9.3. Ubuntu 12 does some folder redirection that makes this happen, but it doesn’t cause any issues.
+
+Enable the Passenger module:
+```
+sudo a2enmod passenger
+sudo service apache2 restart
+```
+and then verify that it loaded (look for Passenger in the output):
+```
+apache2ctl -t -D DUMP_MODULES
+```
+Now we need to create a website for Snorby:
+```
+sudo vi /etc/apache2/sites-available/snorby.conf
+```
+Input the following into that file:
+```
+<VirtualHost *:80>
+	ServerAdmin webmaster@localhost
+	ServerName yourserver.com
+	DocumentRoot /var/www/snorby/public
+	<Directory "/var/www/snorby/public">
+		AllowOverride all
+		Order deny,allow
+		Allow from all
+		Options -MultiViews
+	</Directory>
+</VirtualHost>
+```
+Now enable the new site, disable the default site, and reload Apache to see the new configurations:
+```
+cd /etc/apache2/sites-available/
+sudo a2ensite snorby.conf
+sudo service apache2 reload
+
+cd /etc/apache2/sites-enabled
+sudo a2dissite 000-default
+sudo service apache2 reload
+```
+Now we need to tell Barnyard2 to output events to the Snorby database that we created above.
+```
+sudo vi /etc/snort/barnyard2.conf
+```
+Append at the end off the file:
+```
+output database: log, mysql, user=snorby password=PASSWORD123 dbname=snorby host=localhost sensor_name=sensor1
+```
+We can disable the other output file that you created during the Barnyard2 testing by deleting the previous line (or putting a hash in front of it to disable it).
+```
+# output database: log, mysql, user=snort password=MySqlSNORTpassword dbname=snort host=localhost)
+```
+Restart Barnyard2 to load the new configuration:
+```
+sudo service barnyard2 restart
+```
+Snorby needs one service running for database maintenance (a Snorby worker daemon). We will create a systemD daemon for this task.
+
+First we need to create the service file:
+```
+sudo vi /lib/systemd/system/snorby_worker.service
+```
+with the following content:
+```
+[Unit]
+Description=Snorby Worker Daemon
+Requires=apache2.service
+After=syslog.target network.target apache2.service
+
+[Service]
+Type=forking
+WorkingDirectory=/var/www/html/snorby
+ExecStart=/usr/local/bin/ruby script/delayed_job start
+
+[Install]
+WantedBy=multi-user.target
+```
+Now make the script executable, and tell systemD that the script exists, and then verify that it installed correctly:
+```
+sudo systemctl enable snorby_worker
+systemctl status snorby_worker.service
+```
+We do not want to start the Snorby worker daemon at this time because an instance of the worker is already running (from when you installed Snorby). You can verify this by logging into the web interface using the instructions below. In the Snorby web interface, look for the snorby worker status under **Administration –>Worker and Job Queue**).
+
+To log into the web interface: open a web browser and navigate to <http://<ip_of_snorby_server>>. you don’t need to enter the port number, as it is listening on port 80 now.
+
+The default login information is:
+```
+E-mail: snorby@example.com
+Password: snorby
+```
+It can take some time (a minute or two) between when alerts are generated and when they show up in the Snorby dashboard. To verify that alerts are being written to the snorby database, generate some events (using the ping rule as before), then run the following command, using the snorby MySql password
+(`PASSWORD123`):
+```
+mysql -u snorby -p -D snorby -e "select count(*) from event"
+```
+If events don’t show, try rebooting the system and checking again.
+
+Reboot the computer and verify that the worker process has restarted properly in the web interface (look under **Administration –>Worker and Job Queue**). If it doesn’t show as running, check the service status and the service log:
+```
+systemctl status snorby_worker.service
+
+journalctl -u snorby_service
+```
+
+# Where To Go From Here
+
+I hope this guide has been helpful to you. Please feel free to provide feedback, both issues you experienced and recommendations that you have. The goal of this guide was not just for you to create a Snort NIDS, but to understand how all the parts work together, and get a deeper understanding of all the components, so that you can troubleshoot and modify your Snort NIDS with confidence.
+
+**Capturing More Traffic With Snort:**
+
+You will probably want to configure your network infrastructure to mirror traffic meant for other hosts to your Snort sensor. This configuration is dependent on what network equipment you are using. If you are running Snort as a Virtual Machine on a VMware ESXi server, you can configure promiscuous mode for ESXi by following the instructions in Appendix: ESXi and Snort in Promiscuous Mode.
+
+For different network infrastructure, you will need to do a little research to configure network mirroring for your Snort server. Cisco calls this a [span port](http://www.cisco.com/c/en/us/td/docs/switches/lan/catalyst2940/software/release/12-1_19_ea1/configuration/guide/2940scg_1/swspan.html), but most other vendors call this Port Mirroring. Instructions for [Mikrotik](http://wiki.mikrotik.com/wiki/Manual:CRS_examples#Port_Based_Mirroring) (a linux based switch and router product that i like). If you run [DD-WRT](http://myopenrouter.com/article/port-mirroring-span-port-monitor-port-iptables-netgear-wgr614l), it can be configured with [iptables](http://superuser.com/questions/753294/mirror-port-via-iptables), like any linux based system. If you have network equipment not listed above, any search engine should point you towards a solution, if one exists. Note that many consumer switches will not have the ability to mirror ports.
+
+**More Advanced Snort Configuration**
+
+Snort has the ability to do much more than weve covered in this set of articles. Hopefully youve learned enough through this setup that you will be able to implement more advanced configurations and make Snort work for you. Some things that Snort is capable of:
+
+* [Network Intrusion Prevention System (IPS)](https://www.ibm.com/developerworks/community/blogs/58e72888-6340-46ac-b488-d31aa4058e9c/entry/august_8_2012_12_01_pm6?lang=en)
+* [Multiple remote Snort sensors](http://www.engardelinux.org/modules/index/list_archives.cgi?list=snort-users&page=0076.html&month=2012-05, for example on different subnets.)
+* The [documentation](https://snort.org/documents) section of the Snort website has a number of useful articles about more advanced things you can do with Snort.
+
+**Recommended Reading**
+
+* *Snort IDS and IPS Toolkit* (Jay Beale’s Open Source Security) This is a good book for understanding how Snort works under the hood. It is a little old, but is still relevant and very detailed.
+* *Snort 2.1 Intrusion Detection, 2nd Edition* Another book by Jay Beale, again this is an excellent book on the Snort engine and architecture. The supporting tools he references are out of date and no longer supported, but the rest of the book is excellent.
+* *Snort Cookbook* This book is very helpful in showing how Snort can be run to meet specific needs (using recipes that describe specific situations).
+* *Applied Network Security Monitoring: Collection, Detection, and Analysis* I havent read this book, but it is well reviewed, and covers NIDS at a much higher level than the other two books
+
+# License
+This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License
+
+[CC BY-NC-SA 4.0](https://creativecommons.org/licenses/by-nc-sa/4.0/legalcode)
