@@ -1312,7 +1312,7 @@ Snort has the ability to do much more than weve covered in this set of articles.
 * *Snort Cookbook* This book is very helpful in showing how Snort can be run to meet specific needs (using recipes that describe specific situations).
 * *Applied Network Security Monitoring: Collection, Detection, and Analysis* I havent read this book, but it is well reviewed, and covers NIDS at a much higher level than the other two books
 
-# A Appendix: ESXi and Snort in Promiscuous Mode
+# Appendix A: ESXi and Snort in Promiscuous Mode
 
 Often you want your Snort NIDS to listen on an adapter that receives all traffic for a switch. VMware calls this “Promiscuous Mode”, while Cisco calls this a “Mirror Port”. To configure your ESXi server to mirror all traffic to an interface on a Virtual Machine (such as the interface for our Snort VM), follow the steps below, from VMware’s website:
 
@@ -1353,7 +1353,7 @@ $ sudo /usr/local/bin/snort -A console -q -u snort -g snort -c /etc/snort/snort.
 ```
 When you ping between the two hosts that aren’t the Snort server, but which are on the same subnet as the Snort server, you should see the events written to the screen. Use `ctrl-c` to stop Snort.
 
-# B Appendix: Installing Snort Rules Manually
+# Appendix B: Installing Snort Rules Manually
 
 If you just want to test Snort manually, and want to use the rules from snort without setting up PulledPork, follow the instructions below. You will need a Oinkcode (free with an account from snort.org)
 
@@ -1383,7 +1383,7 @@ sudo snort -T -c /etc/snort/snort.conf
 ```
 You can now run snort as you normally would (with a startup script or manually).
 
-# C Appendix: Troubleshotting Barnyard2
+# Appendix C: Troubleshotting Barnyard2
 If barnyard2 is having issues loading events, sometimes deleting all of snort’s unified2 event logs and recreate the waldo file can help (you’ll loose the events that are saved there)
 
 To do this:
