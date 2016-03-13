@@ -1311,6 +1311,115 @@ Snort has the ability to do much more than weve covered in this set of articles.
 * *Snort Cookbook* This book is very helpful in showing how Snort can be run to meet specific needs (using recipes that describe specific situations).
 * *Applied Network Security Monitoring: Collection, Detection, and Analysis* I havent read this book, but it is well reviewed, and covers NIDS at a much higher level than the other two books
 
+# A Appendix: ESXi and Snort in Promiscuous Mode
+
+Often you want your Snort NIDS to listen on an adapter that receives all traffic for a switch. VMware calls this “Promiscuous Mode”, while Cisco calls this a “Mirror Port”. To configure your ESXi server to mirror all traffic to an interface on a Virtual Machine (such as the interface for our Snort VM), follow the steps below, from VMware’s website:
+
+1. Log into the ESXi/ESX host or vCenter Server using the ESXi Client.
+2. Select the ESXi/ESX host (the VMware Server) in the inventory.
+3. Click the Configuration tab.
+4. In the Hardware section, click Networking.
+5. Click Properties of the virtual switch (the switch that Snort has its listening interface on) for which you want to enable promiscuous mode.
+6. Select the virtual switch or portgroup you wish to modify and click Edit.
+7. Click the Security tab.
+8. From the Promiscuous Mode dropdown menu, click Accept.
+
+Once VMware is configured to permit promiscuous mode, you then need to configure the interface that Snort is listening on for promiscuous mode. to do this, edit `/etc/network/interfaces`:
+```
+sudo vi /etc/network/interfaces
+```
+and make modifications similar to the following, depending on the configuration of your system:
+```
+# The primary network interface
+auto eth0
+iface eth0 inet dhcp
+
+# Interface that Snort listens on
+auto eth1
+iface eth1 inet manual
+	up ifconfig ✩IFACE 0.0.0.0 up
+	up ip link set ✩IFACE promisc on
+	down ip link set ✩IFACE promisc off
+	down ifconfig ✩IFACE down
+```
+In the above example, Snort will listen on `eth1` (remember that this also has to be changed in the Snort daemon script (the interface referenced by the `-i` flag in /etc/init/snort.conf). We choose not to set an IP addresson the interface that Snort will listen on, since this helps to protect the system from exploits. Management in the above example will be through `eth0` which is configured for DHCP. The command `up ip link set $IFACE promisc on` is what configures the interface for promiscuous mode, and is how the system knows to process all traffic the interface sees, not just traffic that is specifically for the adapter.
+
+To test this configuration, restart networking (or restart the system) and ensure that Snort has started, and is listening on the correct interface. Ping between two hosts on the subnet (two hosts that are not the Snort server) and you should see the events logged.
+
+An easy way to see if this is working is to stop the Snort Daemon (with sudo service snort stop), then run the following (change the interface as needed):
+```
+$ sudo /usr/local/bin/snort -A console -q -u snort -g snort -c /etc/snort/snort.conf -i eth1
+```
+When you ping between the two hosts that aren’t the Snort server, but which are on the same subnet as the Snort server, you should see the events written to the screen. Use `ctrl-c` to stop Snort.
+
+# B Appendix: Installing Snort Rules Manually
+
+If you just want to test Snort manually, and want to use the rules from snort without setting up PulledPork, follow the instructions below. You will need a Oinkcode (free with an account from snort.org)
+
+We need to un-comment all the #include lines in snort.conf, as the downloaded rules will be a series of rule files, rather than the one that PulledPork creates:
+```
+sudo sed -i ✬s/\#include \✩RULE\_PATH/include \✩RULE\_PATH/✬ /etc/snort/snort.conf
+```
+Download the rules, replacing <oinkcode>with your personal Snort code. you might also want to get a newer version of the rules (the example below points to the 2.9.8.0 version of the rules):
+```
+cd ~/snort_src
+wget https://www.snort.org/reg-rules/snortrules-snapshot-2956.tar.gz/<SNORTCODE> -O snortrules-snapshot-2980.tar.gz
+sudo tar xvfvz snortrules-snapshot-2980.tar.gz -C /etc/snort
+```
+Move all new files from /etc/snort/etc to /etc/snort (and get rid of /etc/snort/etc folder that was copied as well):
+```
+sudo cp ./*.conf* ../
+sudo cp ./*.map ../
+cd /etc/snort
+sudo rm -Rf /etc/snort/etc
+```
+Now modify `/etc/snort/snort.conf` with any changes from the original snort.conf.
+We want the new `snort.conf` in case it references any new rulesets.
+
+Test the configuration file with Snort:
+```
+sudo snort -T -c /etc/snort/snort.conf
+```
+You can now run snort as you normally would (with a startup script or manually).
+
+# C Appendix: Troubleshotting Barnyard2
+If barnyard2 is having issues loading events, sometimes deleting all of snort’s unified2 event logs and recreate the waldo file can help (you’ll loose the events that are saved there)
+
+To do this:
+```
+sudo rm /var/log/snort/*
+sudo touch /var/log/snort/barnyard2.waldo
+```
+Other troubleshooting steps:
+* Reboot the server.
+* Be patient. When barnyard2 has a large number of events to process, it can take some time before they show in the database (say you accidentally ran `sudo ping -i 0.001 10.0.0.104` for a minute, generating upwards of 30,000 alerts on your snort server. This can take some time to process.
+* Check that the events are in the database. To check the Snorby database:
+```
+mysql -u snorby -p -D snorby -e "select count(*) from event"
+```
+* to check the snort database if you haven’t installed Snorby:
+```
+mysql -u snort -p -D snort -e "select count(*) from event"
+```
+* Check the system log
+```
+cat /var/log/syslog | grep barnyard
+```
+* Check if the services are running
+```
+# upstart or systemD:
+service snort status
+service barnyard2 status
+```
+* Check that the Snorby worker process is running, both in the Snorby web interface and the daemon:
+```
+# upstart or systemD:
+service snorby_worker status
+
+# systemD check service event log:
+journalctl -u snorby_worker
+```
+
 # License
 This work is licensed under a Creative Commons Attribution-NonCommercial-ShareAlike 4.0 International License
 
