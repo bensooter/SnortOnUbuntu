@@ -765,11 +765,28 @@ Another GUI option would be [Sguil](http://sourceforge.net/projects/sguil/), or 
 
 Because of differences between the various versions of Ubuntu, I have broken this installation section into the next three sections, one for each version of Ubuntu. Please follow one of the links below for your Ubuntu distribution:
 
-## Install Snorby 2.6.2 on Ubuntu 12
+## Install Snorby 2.6.3
 Install the Snorby Pre-requisites:
 ```
-sudo apt-get install -y imagemagick apache2 libyaml-dev libxml2-dev libxslt-dev git ruby1.9.3
+sudo apt-get install -y imagemagick apache2 libyaml-dev libxml2-dev libxslt-dev
 ```
+The official Ubuntu repositories only have Ruby 1.9.3.  We need Ruby >= 2.0 for dependency issues with the gems.  So we'll add a brightbox repo and pull the latest version of Ruby at the time of this writing, Ruby 2.3
+
+Install Brightbox Repositories for Ruby.
+```
+sudo apt-add-repository ppa:brightbox/ruby-ng
+sudo apt-get update
+```
+Install Ruby 2.3
+```
+sudo apt-get install ruby2.3 ruby2.3-dev
+```
+Verify that Ruby installed correctly
+```
+$ ruby2.3 -v
+ruby 2.3.0p0 (2015-12-25 revision 53290) [x86_64-linux-gnu]
+```
+
 Snorby installs a number of Ruby gems. To speed up their installation, run the following two commands to prevent the install of documentation when gems are installed:
 ```
 echo "gem: --no-rdoc --no-ri" > ~/.gemrc
@@ -783,12 +800,11 @@ sudo gem install bundler
 sudo gem install rails
 sudo gem install rake --version=0.9.2
 ```
-Download the 2.6.2 version of Snorby and move it to your webserver directory:
+Download the 2.6.3 version of Snorby and move it to your webserver directory:
 ```
 cd ~/snort_src/
-wget https://github.com/Snorby/snorby/archive/v2.6.2.tar.gz -O snorby-2.6.2.tar.gz
-tar xzvf snorby-2.6.2.tar.gz
-sudo cp -r ./snorby-2.6.2/ /var/www/snorby/
+git clone https://github.com/Snorby/snorby.git
+sudo cp -r ./snorby/ /var/www/snorby/
 ```
 Install all of the Snorby pre-requisites. Ignore warnings about running bundle as root. If you get connection errors when trying to download gems, just re-run the command until it succeeds.
 ```
@@ -929,7 +945,7 @@ Input the following into that file:
 ```
 <VirtualHost *:80>
 	ServerAdmin webmaster@localhost
-	ServerName snorby.sublimerobots.com
+	ServerName yourserver.com
 	DocumentRoot /var/www/snorby/public
 	<Directory "/var/www/snorby/public">
 		AllowOverride all
@@ -1006,3 +1022,4 @@ If you have issues, there is a good chance they are related to Barnyard2. Please
 
 If everything is working, go to the next section: Where To Go From Here.
 
+## 
