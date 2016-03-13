@@ -294,7 +294,7 @@ We now need to edit Snort’s main configuration file, `/etc/snort/snort.conf`. 
 We need to comment out all of the individual rule files that are referenced in the Snort configuration file, since instead of downloading each file individually, we will use PulledPork to manage our rulesets, which combines all the rules into a single file. The following line will comment out all rulesets in our snort.conf
 file:
 ```
-sudo sed -i "s/include \✩RULE\_PATH/#include \✩RULE\_PATH/" /etc/snort/snort.conf
+sudo sed -i "s/include \$RULE\_PATH/#include \$RULE\_PATH/" /etc/snort/snort.conf
 ```
 We will now manually change some settings in the snort.conf file, using your favourite editor:
 ```
@@ -339,7 +339,7 @@ At this stage, Snort does not have any rules loaded (our rule files referenced i
 
 Paste the following single line into the empty local rules file: `/etc/snort/rules/local.rules`:
 ```
-alert icmp any any -> ✩HOME_NET any (msg:"ICMP test detected"; GID:1; sid:10000001; rev:001; classtype:icmpevent;)
+alert icmp any any -> $HOME_NET any (msg:"ICMP test detected"; GID:1; sid:10000001; rev:001; classtype:icmpevent;)
 ```
 Barnyard2 doesn’t read meta-information about alerts from the local.rules file. Without this information, Barnyard2 won’t know any details about the rule that triggered the alert, and will generate non-fatal errors when adding new rules with PulledPork ( done in a later step). To make sure that barnyard2 knows that the rule we created with unique identifier 10000001 has the message ”ICMP Test Detected”, as well as some other information (please see [this blog post](http://blog.snort.org/2013/05/barnyard-v21-13-has-been-released.html) for more information). We add the following line to the `/etc/snort/sid-msg.map` file:
 ```
@@ -458,9 +458,9 @@ Since Barnyard2 saves alerts to our MySQL database, we need to create that datab
 $ mysql -u root -p
 mysql> create database snort;
 mysql> use snort;
-mysql> source ~/snort_src/barnyard2-2-1.14-336/schemas/create_mysql
-mysql> CREATE USER ✬snort✬@✬localhost✬ IDENTIFIED BY ✬MySqlSNORTpassword✬;
-mysql> grant create, insert, select, delete, update on snort.* to ✬snort✬@✬localhost✬;
+mysql> source ~/snort_src/barnyard2/schemas/create_mysql
+mysql> CREATE USER 'snort'@'localhost' IDENTIFIED BY 'MySqlSNORTpassword;
+mysql> grant create, insert, select, delete, update on snort.* to 'snort'@'localhost';
 mysql> exit
 ```
 We need to tell Barnyard2 how to connect to the MySQL database. Edit `/etc/snort/barnyard2.conf`, and at the end of the file add this line (changing password to the one you created above):
@@ -479,7 +479,7 @@ sudo /usr/local/bin/snort -q -u snort -g snort -c /etc/snort/snort.conf -i eth0
 ```
 Ping the interface eth0 from another computer, you won’t see any output on the screen because Snort wasn’t started with the `-A console` flag like before. Once the ping stops, type `ctrl-c` to stop Snort. you should see a new file in the `/var/log/snort` directory with following name: `snort.u2.nnnnnnnnnn` (the numbers will be different because they are based on the current time. The `snort.log.nnnnnnnnnn` is the output file we created when we first tested Snort. You can delete that file if you want:
 ```
-user@snortserver:/var/log/snort✩ ls -l /var/log/snort/
+user@snortserver:/var/log/snort$ ls -l /var/log/snort/
 total 12
 drwsrwxr-t 2 snort snort 4096 Nov 7 14:48 archived_logs
 -rw-r--r-- 1 snort snort 0 Nov 7 19:53 barnyard2.waldo
@@ -565,7 +565,7 @@ I recommend you create a snort.org account and get an oinkcode before continuing
 
 Configure PulledPork by editing `/etc/snort/pulledpork.conf` with the following command:
 ```
-sudo vi /etc/snort/pulledpork.conf
+sudo nano /etc/snort/pulledpork.conf
 ```
 Anywhere you see `<oinkcode>` enter the oinkcode you received from snort.org (if you didn’t get an oinkcode, you’ll need to comment out lines 19 and 26):
 ```
@@ -609,7 +609,7 @@ IP Blacklist Stats...
     Total IPs:-----9374
     
 Done
-user@snortserver:~✩
+user@snortserver:~$
 ```
 When PulledPork completes successfully as above, You should now see `snort.rules` in `/etc/snort/rules/`.
 
@@ -644,7 +644,7 @@ We want to create startup scripts for Snort and Barnyard2 that will launch the s
 ## Upstart Startup Script - Ubuntu 12 and 14
 We will use Upstart rather than SystemV init scrips to run both Snort and Barnyard2. First we need to create the Snort startup script:
 ```
-sudo vi /etc/init/snort.conf
+sudo nano /etc/init/snort.conf
 ```
 With the following content (note that we are using the same flags as when we tested above, except for the addition of the `-D` flag, which tells Snort to run as a daemon). Remember to change eth0 to the interface you want to listen on:
 ```
@@ -657,10 +657,10 @@ end script
 ```
 Now make the script executable, and tell Upstart that the script exists, and then verify that it is installed:
 ```
-user@snortserver:~✩ sudo chmod +x /etc/init/snort.conf
-user@snortserver:~✩ initctl list | grep snort
+user@snortserver:~$ sudo chmod +x /etc/init/snort.conf
+user@snortserver:~$ initctl list | grep snort
 snort stop/waiting
-user@snortserver:~✩
+user@snortserver:~$
 ```
 Do the same for our Barnyard2 script (note that the exec command should be one one line). We will add two flags here: `-D` to run as a daemon, and `-a /var/log/snort/archived_logs`, this will move logs that Barnyard2 has processed to the `/var/log/snort/archived/` folder.
 ```
@@ -812,7 +812,7 @@ sudo bundle install
 Snorby uses `database.yml` to tell it how to connect to the MySQL server. We will copy the example file to the correct location and edit it with our credentials:
 ```
 sudo cp /var/www/snorby/config/database.yml.example /var/www/snorby/config/database.yml
-sudo vi /var/www/snorby/config/database.yml
+sudo nano /var/www/snorby/config/database.yml
 ```
 You need to change the password field to reflect the MySQL root password you set when installing MySQL (`MySqlROOTpassword`). Note that we will change this later after Snorby has setup the databases it needs to use a lower-priviledge MySQL account. The begining of the file should look like this after editing:
 ```
@@ -851,7 +851,7 @@ myslq> exit
 ```
 Now that we’ve created a new MySQL snorby user and password, edit Snorby’s database.yml to use the new account:
 ```
-sudo vi /var/www/snorby/config/database.yml
+sudo nano /var/www/snorby/config/database.yml
 ```
 The file should now look like this (note the changes to lines 8 and 9):
 ```
@@ -909,7 +909,7 @@ LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/a
 ```
 The first line tells Apache the path to the shared object library to load the Phusion passenger module. We want to create a new file for this line. Create this file:
 ```
-sudo vi /etc/apache2/mods-available/passenger.load
+sudo nano /etc/apache2/mods-available/passenger.load
 ```
 And paste the first line into that file. In my case, I pasted:
 ```
@@ -917,7 +917,7 @@ LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/a
 ```
 The final 4 lines specify the configuration for Phusion Passenger. Create the correct file as follows:
 ```
-sudo vi /etc/apache2/mods-available/passenger.conf
+sudo nano /etc/apache2/mods-available/passenger.conf
 ```
 And paste the two content lines in. You do not need the `<IfModule>`tags In my case, I pasted:
 ```
@@ -937,7 +937,7 @@ apache2ctl -t -D DUMP_MODULES
 ```
 Now we need to create a website for Snorby:
 ```
-sudo vi /etc/apache2/sites-available/snorby.conf
+sudo nano /etc/apache2/sites-available/snorby.conf
 ```
 Input the following into that file:
 ```
@@ -965,7 +965,7 @@ sudo service apache2 reload
 ```
 Now we need to tell Barnyard2 to output events to the Snorby database that we created above.
 ```
-sudo vi /etc/snort/barnyard2.conf
+sudo nano /etc/snort/barnyard2.conf
 ```
 Append at the end off the file:
 ```
@@ -983,7 +983,7 @@ Snorby needs one service running for database maintenance (a Snorby worker daemo
 
 First we need to create the startup script:
 ```
-sudo vi /etc/init/snorby_worker.conf
+sudo nano /etc/init/snorby_worker.conf
 ```
 with the following content:
 ```
@@ -1070,7 +1070,7 @@ sudo bundle install
 Snorby uses `database.yml` to tell it how to connect to the MySQL server. We will copy the example file to the correct location and edit it with our credentials:
 ```
 sudo cp /var/www/snorby/config/database.yml.example /var/www/snorby/config/database.yml
-sudo vi /var/www/snorby/config/database.yml
+sudo nano /var/www/snorby/config/database.yml
 ```
 You need to change the password field to reflect the MySQL root password you set when installing MySQL (`MySqlROOTpassword`). Note that we will change this later after Snorby has setup the databases it needs to use a lower-priviledge MySQL account. The begining of the file should look like this after editing:
 ```
@@ -1109,7 +1109,7 @@ myslq> exit
 ```
 Now that we’ve created a new MySQL snorby user and password, edit Snorby’s database.yml to use the new account:
 ```
-sudo vi /var/www/snorby/config/database.yml
+sudo nano /var/www/snorby/config/database.yml
 ```
 The file should now look like this (note the changes to lines 8 and 9):
 ```
@@ -1167,7 +1167,7 @@ LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/a
 ```
 The first line tells Apache the path to the shared object library to load the Phusion passenger module. We want to create a new file for this line. Create this file:
 ```
-sudo vi /etc/apache2/mods-available/passenger.load
+sudo nano /etc/apache2/mods-available/passenger.load
 ```
 And paste the first line into that file. In my case, I pasted:
 ```
@@ -1175,7 +1175,7 @@ LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/a
 ```
 The final 4 lines specify the configuration for Phusion Passenger. Create the correct file as follows:
 ```
-sudo vi /etc/apache2/mods-available/passenger.conf
+sudo nano /etc/apache2/mods-available/passenger.conf
 ```
 And paste the two content lines in. You do not need the `<IfModule>`tags In my case, I pasted:
 ```
@@ -1195,7 +1195,7 @@ apache2ctl -t -D DUMP_MODULES
 ```
 Now we need to create a website for Snorby:
 ```
-sudo vi /etc/apache2/sites-available/snorby.conf
+sudo nano /etc/apache2/sites-available/snorby.conf
 ```
 Input the following into that file:
 ```
@@ -1223,7 +1223,7 @@ sudo service apache2 reload
 ```
 Now we need to tell Barnyard2 to output events to the Snorby database that we created above.
 ```
-sudo vi /etc/snort/barnyard2.conf
+sudo nano /etc/snort/barnyard2.conf
 ```
 Append at the end off the file:
 ```
@@ -1241,7 +1241,7 @@ Snorby needs one service running for database maintenance (a Snorby worker daemo
 
 First we need to create the service file:
 ```
-sudo vi /lib/systemd/system/snorby_worker.service
+sudo nano /lib/systemd/system/snorby_worker.service
 ```
 with the following content:
 ```
@@ -1326,7 +1326,7 @@ Often you want your Snort NIDS to listen on an adapter that receives all traffic
 
 Once VMware is configured to permit promiscuous mode, you then need to configure the interface that Snort is listening on for promiscuous mode. to do this, edit `/etc/network/interfaces`:
 ```
-sudo vi /etc/network/interfaces
+sudo nano /etc/network/interfaces
 ```
 and make modifications similar to the following, depending on the configuration of your system:
 ```
@@ -1337,10 +1337,10 @@ iface eth0 inet dhcp
 # Interface that Snort listens on
 auto eth1
 iface eth1 inet manual
-	up ifconfig ✩IFACE 0.0.0.0 up
-	up ip link set ✩IFACE promisc on
-	down ip link set ✩IFACE promisc off
-	down ifconfig ✩IFACE down
+	up ifconfig $IFACE 0.0.0.0 up
+	up ip link set $IFACE promisc on
+	down ip link set $IFACE promisc off
+	down ifconfig $IFACE down
 ```
 In the above example, Snort will listen on `eth1` (remember that this also has to be changed in the Snort daemon script (the interface referenced by the `-i` flag in /etc/init/snort.conf). We choose not to set an IP addresson the interface that Snort will listen on, since this helps to protect the system from exploits. Management in the above example will be through `eth0` which is configured for DHCP. The command `up ip link set $IFACE promisc on` is what configures the interface for promiscuous mode, and is how the system knows to process all traffic the interface sees, not just traffic that is specifically for the adapter.
 
@@ -1358,7 +1358,7 @@ If you just want to test Snort manually, and want to use the rules from snort wi
 
 We need to un-comment all the #include lines in snort.conf, as the downloaded rules will be a series of rule files, rather than the one that PulledPork creates:
 ```
-sudo sed -i ✬s/\#include \✩RULE\_PATH/include \✩RULE\_PATH/✬ /etc/snort/snort.conf
+sudo sed -i 's/\#include \$RULE\_PATH/include \$RULE\_PATH/' /etc/snort/snort.conf
 ```
 Download the rules, replacing <oinkcode>with your personal Snort code. you might also want to get a newer version of the rules (the example below points to the 2.9.8.0 version of the rules):
 ```
