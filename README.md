@@ -886,7 +886,7 @@ sudo bundle exec rails server -e production
 ```
 This will start Snorby and will be available on port 3000.
 
-Navigate to <http://<ip_of_snorby_server>:3000> and you should see the logon screen. Don’t log in at this time as we are only testing that the software runs. Use `ctrl-c` to stop the Snorby server.
+Navigate to `http://<ip_of_snorby_server>:3000` and you should see the logon screen. Don’t log in at this time as we are only testing that the software runs. Use `ctrl-c` to stop the Snorby server.
 
 We will use [Phusion Passenger](https://www.phusionpassenger.com/), an application server module for Apache to launch Snorby. First install pre-requisites:
 ```
@@ -1006,7 +1006,7 @@ user@snortserver:~$
 ```
 te that this daemon will often list as stop/waiting, and that is ok, because of how it works. You can check the worker job status use the web interface (look under Administration –>Worker and Job Queue).
 
-To log into the web interface: open a web browser and navigate to <http://<ip_of_snorby_server>>. you don’t need to enter the port number, as it is listening on port 80 now.
+To log into the web interface: open a web browser and navigate to `http://<ip_of_snorby_server>`. you don’t need to enter the port number, as it is listening on port 80 now.
 
 The default login information is:
 ```
@@ -1144,7 +1144,7 @@ sudo bundle exec rails server -e production
 ```
 This will start Snorby and will be available on port 3000.
 
-Navigate to <http://<ip_of_snorby_server>:3000> and you should see the logon screen. Don’t log in at this time as we are only testing that the software runs. Use `ctrl-c` to stop the Snorby server.
+Navigate to `http://<ip_of_snorby_server>:3000` and you should see the logon screen. Don’t log in at this time as we are only testing that the software runs. Use `ctrl-c` to stop the Snorby server.
 
 We will use [Phusion Passenger](https://www.phusionpassenger.com/), an application server module for Apache to launch Snorby. First install pre-requisites:
 ```
@@ -1266,7 +1266,7 @@ systemctl status snorby_worker.service
 ```
 We do not want to start the Snorby worker daemon at this time because an instance of the worker is already running (from when you installed Snorby). You can verify this by logging into the web interface using the instructions below. In the Snorby web interface, look for the snorby worker status under **Administration –>Worker and Job Queue**).
 
-To log into the web interface: open a web browser and navigate to <http://<ip_of_snorby_server>>. you don’t need to enter the port number, as it is listening on port 80 now.
+To log into the web interface: open a web browser and navigate to `http://<ip_of_snorby_server>`. you don’t need to enter the port number, as it is listening on port 80 now.
 
 The default login information is:
 ```
