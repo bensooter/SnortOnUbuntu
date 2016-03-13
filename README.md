@@ -1,13 +1,10 @@
 # Snort 2.9.8.x on Ubuntu 12, 14, and 15
 ### with Barnyard2, PulledPork, and Snorby
 #
-**Based on the Awesome Guide By:**
-
-**Noah Dietrich**
-
-**Noah@sublimerobots.com**
-
-**Original Guide Available At:**
+> **Based on the Awesome Guide By:**
+> **Noah Dietrich**
+> **Noah@sublimerobots.com**
+> **Original Guide Available At:**
 
 **[sublimerobots.com](http://sublimerobots.com)**
 #
