@@ -30,7 +30,7 @@ A web-based graphical interface for viewing and clearing Snort events.
 
 If you just want to setup Snort on a Ubuntu system without going through the work in this document, there is a project called [Autosnort](https://github.com/da667/Autosnort) that will install all the same software as this guide with a script. Optionally, you could use a fully configured LiveCD like [EasyIDS](http://sourceforge.net/projects/easyids/) or [Security Onion](https://security-onion-solutions.github.io/security-onion/). The benefit of this guide over Autosnort, EasyIDS, or Security Onion is that this guide walks you through installing each component, explaining the steps as you go along. This will give you a better understanding of the software components that make up Snort, and will allow you to configure Snort for your own needs.
 
-Note: while this guide focuses on the current 2.9.8.x series release of Snort, these steps will most likely work to install the older Snort 2.9.7.x series, and could be used to install Snort on older or derivative versions of Ubuntu (Xubuntu, Mint, etc.). I have also been told that these instructions are helpful for installing Snort on Debian systems, but I haven’t verified that myself.
+Note: while this guide focuses on the current 2.9.8.x series release of Snort, these steps will most likely work to install the older Snort 2.9.7.x series, and could be used to install Snort on older or derivative versions of Ubuntu (Xubuntu, Mint, etc.). I have also been told that these instructions are helpful for installing Snort on Debian systems, but I haven't verified that myself.
 
 # About This Guide
 **Passwords:** This guide chooses to use simplistic passwords to make it obvious as to what is being done. You should select your own secure passwords in place of these passwords.
@@ -50,7 +50,7 @@ Software versions used in this guide:
 If you are interested in adding OpenAppID support to Snort, please see this article on [Noah's blog](http://sublimerobots.com/2015/12/openappid-snort-2-9-8-x-on-ubuntu/). For more information about OpenAppID, please see [Firing up OpenAppID](http://blog.snort.org/2014/03/firing-up-openappid.html).
 
 # Environment
-As stated above, this guide was written geared towards installing Snort as a virtual machine running on an VMware vSphere 3 hypervisor. The vSphere hypervisor is a free product from [VMware](http://www.vmware.com/products/vsphere-hypervisor/), and which I highly recommend for testing software due to the ability to create snapshots. If you choose to install Snort outside of a virtual machine, the steps below should be the same, except for a few VMware specific steps that should be fairly obvious once you’ve worked through this guide.
+As stated above, this guide was written geared towards installing Snort as a virtual machine running on an VMware vSphere 3 hypervisor. The vSphere hypervisor is a free product from [VMware](http://www.vmware.com/products/vsphere-hypervisor/), and which I highly recommend for testing software due to the ability to create snapshots. If you choose to install Snort outside of a virtual machine, the steps below should be the same, except for a few VMware specific steps that should be fairly obvious once you've worked through this guide.
 
 # Ethernet Interface Names On Ubuntu 15.10
 **Important note for people running Ubuntu 15.10:** In Ubuntu 15.10, for new installations (not upgrades), network interfaces no longer follow the ethX standard (eth0, eth1, ...). Instead, interfaces names are assigned as Predictable Network Interface Names. This means you need to check the names of your interfaces using ifconfig, since you will need to reference the name of your interface for many steps in this guide. In my case, what was originally `eth0` is now `ens160`. If you are running Ubuntu 15.10, anywhere in this guide you see eth0, you will need to replace with your new interface name.
@@ -177,9 +177,9 @@ cd snort-2.9.8.0
 make
 sudo make install
 ```
-If you are interested in seeing the other compile-time options that are available, run ./configure --help to get a list of all compile-time options. The Snort team has tried to ensure that the default settings are good for most basic installations, so you shouldn’t need to change anything unless you are trying to do something special.
+If you are interested in seeing the other compile-time options that are available, run ./configure --help to get a list of all compile-time options. The Snort team has tried to ensure that the default settings are good for most basic installations, so you shouldn't need to change anything unless you are trying to do something special.
 
-Run the following command to update shared libraries (you’ll get an error when you try to run Snort if you skip this step):
+Run the following command to update shared libraries (you'll get an error when you try to run Snort if you skip this step):
 ```
 sudo ldconfig
 ```
@@ -841,7 +841,7 @@ Now we want to install Snorby. The below command will download the necessary gem
 cd /var/www/snorby
 sudo bundle exec rake snorby:setup
 ```
-Now we want to edit the MySQL Snorby database to grant access to a lower privilidged user (we don’t want the Snorby application using the root password to interface with the database). Run the following commands to create a new MySQL snorby user with password `PASSWORD123`. You will be prompted for your MySQL root password (`MySqlROOTpassword`) after the first command:
+Now we want to edit the MySQL Snorby database to grant access to a lower privileged user (we don’t want the Snorby application using the root password to interface with the database). Run the following commands to create a new MySQL snorby user with password `PASSWORD123`. You will be prompted for your MySQL root password (`MySqlROOTpassword`) after the first command:
 ```
 $ mysql -u root -p
 myslq> create user 'snorby'@'localhost' IDENTIFIED BY 'PASSWORD123';
