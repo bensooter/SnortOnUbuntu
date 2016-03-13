@@ -2,9 +2,13 @@
 ### with Barnyard2, PulledPork, and Snorby
 #
 **Based on the Awesome Guide By:**
+
 **Noah Dietrich**
+
 **Noah@sublimerobots.com**
+
 **Original Guide Available At:**
+
 **[sublimerobots.com](http://sublimerobots.com)**
 #
 #
