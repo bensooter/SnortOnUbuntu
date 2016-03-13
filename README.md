@@ -816,12 +816,193 @@ snorby: &snorby
 development:
 ... and so on
 ```
+Now we need to create the Snorby configuration file (copied from it’s example file), and update it to point to the correct version of wkhtmlpdf:
+```
+sudo cp /var/www/snorby/config/snorby_config.yml.example /var/www/snorby/config/snorby_config.yml
+sudo sed -i s/"\/usr\/local\/bin\/wkhtmltopdf"/"\/usr\/bin\/wkhtmltopdf"/g /var/www/snorby/config/snorby_config.yml
+```
+Now we want to install Snorby. The below command will download the necessary gems and will create a new database called Snorby for use. This can take some time to complete. You can ignore errors about ”Jammit Warning: Asset compression disabled – Java unavailable.”.
+```
+cd /var/www/snorby
+sudo bundle exec rake snorby:setup
+```
+Now we want to edit the MySQL Snorby database to grant access to a lower privilidged user (we don’t want the Snorby application using the root password to interface with the database). Run the following commands to create a new MySQL snorby user with password `PASSWORD123`. You will be prompted for your MySQL root password (`MySqlROOTpassword`) after the first command:
+```
+$ mysql -u root -p
+myslq> create user 'snorby'@'localhost' IDENTIFIED BY 'PASSWORD123';
+myslq> grant all privileges on snorby.* to 'snorby'@'localhost' with grant option;
+myslq> flush privileges;
+myslq> exit
 
+```
+Now that we’ve created a new MySQL snorby user and password, edit Snorby’s database.yml to use the new account:
+```
+sudo vi /var/www/snorby/config/database.yml
+```
+The file should now look like this (note the changes to lines 8 and 9):
+```
+# Snorby Database Configuration
+#
+# Please set your database password/user below
+# NOTE: Indentation is important.
+#
+snorby: &snorby
+	adapter: mysql
+	username: snorby
+	password: "PASSWORD123" # Example: password: "s3cr3tsauce"
+	host: localhost
 
+development:
+	database: snorby
+	<<: *snorby
 
+test:
+	database: snorby
+	<<: *snorby
 
+production:
+	database: snorby
+	<<: *snorby
+```
+Now we are ready to test Snorby. Run Snorby with:
+```
+cd /var/www/snorby/
+sudo bundle exec rails server -e production
+```
+This will start Snorby and will be available on port 3000.
 
+Navigate to <http://<ip_of_snorby_server>:3000> and you should see the logon screen. Don’t log in at this time as we are only testing that the software runs. Use `ctrl-c` to stop the Snorby server.
 
+We will use [Phusion Passenger](https://www.phusionpassenger.com/), an application server module for Apache to launch Snorby. First install pre-requisites:
+```
+sudo apt-get install -y libcurl4-openssl-dev apache2-threaded-dev libaprutil1-dev libapr1-dev
+```
+Install the Passenger gem and the apache module (we don’t install the Ubuntu repository version of Phusion
+Passenger because it doesn’t work well).
+```
+sudo gem install passenger
+sudo passenger-install-apache2-module
+```
+The Phusion Passenger install wizard will start. Un-check the Python language support (we only need Ruby support) using the arrows and space bar, then use enter to continue through the menu options.
 
+After compiling software, the wizard will finally tell you to copy some text to your Apache configuration file. We don’t want to do that because Apache now uses separate files for modules. We do want the information that is printed, we will just use it slightly differently. Copy the six lines of text that are shown, as you’ll need them. Hit enter twice to exit the wizard. My install showed the following (yours may be different):
+```
+LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/apache2/mod_passenger.so
+<IfModule mod_passenger.c>
+	PassengerRoot /var/lib/gems/1.9.1/gems/passenger-5.0.21
+	PassengerDefaultRuby /usr/bin/ruby1.9.1
+</IfModule>
+```
+The first line tells Apache the path to the shared object library to load the Phusion passenger module. We want to create a new file for this line. Create this file:
+```
+sudo vi /etc/apache2/mods-available/passenger.load
+```
+And paste the first line into that file. In my case, I pasted:
+```
+LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/apache2/mod_passenger.so
+```
+The final 4 lines specify the configuration for Phusion Passenger. Create the correct file as follows:
+```
+sudo vi /etc/apache2/mods-available/passenger.conf
+```
+And paste the two content lines in. You do not need the `<IfModule>`tags In my case, I pasted:
+```
+PassengerRoot /var/lib/gems/1.9.1/gems/passenger-5.0.21
+PassengerDefaultRuby /usr/bin/ruby1.9.1
+```
+Note: yes, the lines above say ruby1.9.1, and we did install ruby 1.9.3. Ubuntu 12 does some folder redirection that makes this happen, but it doesn’t cause any issues.
 
+Enable the Passenger module:
+```
+sudo a2enmod passenger
+sudo service apache2 restart
+```
+and then verify that it loaded (look for Passenger in the output):
+```
+apache2ctl -t -D DUMP_MODULES
+```
+Now we need to create a website for Snorby:
+```
+sudo vi /etc/apache2/sites-available/snorby.conf
+```
+Input the following into that file:
+```
+<VirtualHost *:80>
+	ServerAdmin webmaster@localhost
+	ServerName snorby.sublimerobots.com
+	DocumentRoot /var/www/snorby/public
+	<Directory "/var/www/snorby/public">
+		AllowOverride all
+		Order deny,allow
+		Allow from all
+		Options -MultiViews
+	</Directory>
+</VirtualHost>
+```
+Now enable the new site, disable the default site, and reload Apache to see the new configurations:
+```
+cd /etc/apache2/sites-available/
+sudo a2ensite snorby.conf
+sudo service apache2 reload
+
+cd /etc/apache2/sites-enabled
+sudo a2dissite 000-default
+sudo service apache2 reload
+```
+Now we need to tell Barnyard2 to output events to the Snorby database that we created above.
+```
+sudo vi /etc/snort/barnyard2.conf
+```
+Append at the end off the file:
+```
+output database: log, mysql, user=snorby password=PASSWORD123 dbname=snorby host=localhost sensor_name=sensor1
+```
+We can disable the other output file that you created during the Barnyard2 testing by deleting the previous line (or putting a hash in front of it to disable it).
+```
+# output database: log, mysql, user=snort password=MySqlSNORTpassword dbname=snort host=localhost)
+```
+Restart Barnyard2 to load the new configuration:
+```
+sudo service barnyard2 restart
+```
+Snorby needs one service running for database maintenance (a Snorby worker daemon). We will create an Upstart daemon for this task.
+
+First we need to create the startup script:
+```
+sudo vi /etc/init/snorby_worker.conf
+```
+with the following content:
+```
+description "Snorby Delayed Job"
+stop on runlevel [!2345]
+start on runlevel [2345]
+chdir /var/www/snorby
+
+script
+	exec /usr/bin/ruby script/delayed_job start
+end script
+```
+Now make the script executable, and tell Upstart that the script exists, and then verify that it installed correctly:
+```
+user@snortserver:~$ sudo chmod +x /etc/init/snorby_worker.conf
+user@snortserver:~$ initctl list | grep snorby_worker
+snorby_worker stop/waiting
+user@snortserver:~$
+```
+te that this daemon will often list as stop/waiting, and that is ok, because of how it works. You can check the worker job status use the web interface (look under Administration –>Worker and Job Queue).
+
+To log into the web interface: open a web browser and navigate to <http://<ip_of_snorby_server>>. you don’t need to enter the port number, as it is listening on port 80 now.
+
+The default login information is:
+```
+E-mail: snorby@example.org
+Password: snorby
+```
+It can take some time (a minute or two) between when alerts are generated and when they show up in the Snorby dashbord. To verify that alerts are being written to the Snorby database, generate some events (using the ping rule as before), then run the following command, using the Snorby MySql password (`PASSWORD123`):
+```
+mysql -u snorby -p -D snorby -e "select count(*) from event"
+```
+If you have issues, there is a good chance they are related to Barnyard2. Please see Apendix: Troubleshooting Barnyard2.
+
+If everything is working, go to the next section: Where To Go From Here.
 
