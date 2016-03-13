@@ -373,6 +373,7 @@ Initializing rule chains...
 +----------------------------------------------------------------------------
 ```
 Now that we know that Snort correctly loads our rule and our configuration, we can start snort in NIDS mode, and tell it to output any alerts right to the console. We will run Snort from the command line, using the following flags:
+
 | Flag | Description |
 | --- | --- |
 | `-A console` | The ‘console’ option prints fast mode alerts to stdout |
