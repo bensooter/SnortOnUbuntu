@@ -47,7 +47,7 @@ Software versions used in this guide:
 **Administrator Accounts:** This guide assumes that you are logged into the system as a normal user, and will run all administrative commands with *sudo*. This helps to identify what commands require administrative credentials, and which do not. We will also create a non-privileged user named *snort* that will be used to run all applications when setting up services, following current best security practices.
 
 # Enabling OpenAppID
-If you are interested in adding OpenAppID support to Snort, please see this article on [Neil's blog](http://sublimerobots.com/2015/12/openappid-snort-2-9-8-x-on-ubuntu/). For more information about OpenAppID, please see [Firing up OpenAppID](http://blog.snort.org/2014/03/firing-up-openappid.html).
+If you are interested in adding OpenAppID support to Snort, please see this article on [Noah's blog](http://sublimerobots.com/2015/12/openappid-snort-2-9-8-x-on-ubuntu/). For more information about OpenAppID, please see [Firing up OpenAppID](http://blog.snort.org/2014/03/firing-up-openappid.html).
 
 # Environment
 As stated above, this guide was written geared towards installing Snort as a virtual machine running on an VMware vSphere 3 hypervisor. The vSphere hypervisor is a free product from [VMware](http://www.vmware.com/products/vsphere-hypervisor/), and which I highly recommend for testing software due to the ability to create snapshots. If you choose to install Snort outside of a virtual machine, the steps below should be the same, except for a few VMware specific steps that should be fairly obvious once you’ve worked through this guide.
@@ -756,7 +756,7 @@ systemctl status barnyard2
 Reboot and verify that both services start correctly.
 
 # Snorby - A Web GUI for Snort
-Snorby is a web GUI for Snort that uses Ruby on Rails to provide a Web-2.0 interface. An alternative to Snorby is [BASE](http://sourceforge.net/projects/secureideas/). BASE has a much simpler interface than Snorby, and is still very popular. Either application will work, although I have chosen Snorby for this install guide. If you would rather use BASE, I have instructions for installing BASE on [Neil's blog](http://sublimerobots.com/2014/12/installing-snort-part-6).
+Snorby is a web GUI for Snort that uses Ruby on Rails to provide a Web-2.0 interface. An alternative to Snorby is [BASE](http://sourceforge.net/projects/secureideas/). BASE has a much simpler interface than Snorby, and is still very popular. Either application will work, although I have chosen Snorby for this install guide. If you would rather use BASE, I have instructions for installing BASE on [Noah's blog](http://sublimerobots.com/2014/12/installing-snort-part-6).
 
 Another GUI option would be [Sguil](http://sourceforge.net/projects/sguil/), or to forward the alerts to a [SIEM](https://en.wikipedia.org/wiki/Security_information_and_event_management) like [Splunk](https://splunkbase.splunk.com/app/340/).
 
