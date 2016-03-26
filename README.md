@@ -892,46 +892,37 @@ We will use [Phusion Passenger](https://www.phusionpassenger.com/), an applicati
 ```
 sudo apt-get install -y libcurl4-openssl-dev apache2-threaded-dev libaprutil1-dev libapr1-dev
 ```
-Install the Passenger gem and the apache module (we don’t install the Ubuntu repository version of Phusion
+Install Passenger and the apache module (we don’t install the Ubuntu repository version of Phusion
 Passenger because it doesn’t work well).
-```
-sudo gem install passenger
-sudo passenger-install-apache2-module
-```
-The Phusion Passenger install wizard will start. Un-check the Python language support (we only need Ruby support) using the arrows and space bar, then use enter to continue through the menu options.
 
-After compiling software, the wizard will finally tell you to copy some text to your Apache configuration file. We don’t want to do that because Apache now uses separate files for modules. We do want the information that is printed, we will just use it slightly differently. Copy the six lines of text that are shown, as you’ll need them. Hit enter twice to exit the wizard. My install showed the following (yours may be different):
-```
-LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/apache2/mod_passenger.so
-<IfModule mod_passenger.c>
-	PassengerRoot /var/lib/gems/1.9.1/gems/passenger-5.0.21
-	PassengerDefaultRuby /usr/bin/ruby1.9.1
-</IfModule>
-```
-The first line tells Apache the path to the shared object library to load the Phusion passenger module. We want to create a new file for this line. Create this file:
-```
-sudo nano /etc/apache2/mods-available/passenger.load
-```
-And paste the first line into that file. In my case, I pasted:
-```
-LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/apache2/mod_passenger.so
-```
-The final 4 lines specify the configuration for Phusion Passenger. Create the correct file as follows:
-```
-sudo nano /etc/apache2/mods-available/passenger.conf
-```
-And paste the two content lines in. You do not need the `<IfModule>`tags In my case, I pasted:
-```
-PassengerRoot /var/lib/gems/1.9.1/gems/passenger-5.0.21
-PassengerDefaultRuby /usr/bin/ruby1.9.1
-```
-Note: yes, the lines above say ruby1.9.1, and we did install ruby 1.9.3. Ubuntu 12 does some folder redirection that makes this happen, but it doesn’t cause any issues.
 
-Enable the Passenger module:
+First install the Passenger PGP key and HTTPS support
+```
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 561F9B9CAC40B2F7
+sudo apt-get install -y apt-transport-https ca-certificates
+```
+Add the Passenger repository and update
+```
+sudo sh -c 'echo deb https://oss-binaries.phusionpassenger.com/apt/passenger trusty main > /etc/apt/sources.list.d/passenger.list'
+sudo apt-get update
+```
+Install Passenger
+```
+sudo apt-get install -y libapache2-mod-passenger
+```
+Enable the Passenger Apache module and restart Apache
 ```
 sudo a2enmod passenger
-sudo service apache2 restart
+$ sudo apache2ctl restart
 ```
+Verify the Install
+```
+sudo /usr/bin/passenger-config validate-install
+ * Checking whether this Phusion Passenger install is in PATH... ✓
+ * Checking whether there are no other Phusion Passenger installations... ✓
+```
+
+
 and then verify that it loaded (look for Passenger in the output):
 ```
 apache2ctl -t -D DUMP_MODULES
@@ -1150,45 +1141,34 @@ We will use [Phusion Passenger](https://www.phusionpassenger.com/), an applicati
 ```
 sudo apt-get install -y libcurl4-openssl-dev apache2-threaded-dev libaprutil1-dev libapr1-dev
 ```
-Install the Passenger gem and the apache module (we don’t install the Ubuntu repository version of Phusion
+Install Passenger and the apache module (we don’t install the Ubuntu repository version of Phusion
 Passenger because it doesn’t work well).
-```
-sudo gem install passenger
-sudo passenger-install-apache2-module
-```
-The Phusion Passenger install wizard will start. Un-check the Python language support (we only need Ruby support) using the arrows and space bar, then use enter to continue through the menu options.
 
-After compiling software, the wizard will finally tell you to copy some text to your Apache configuration file. We don’t want to do that because Apache now uses separate files for modules. We do want the information that is printed, we will just use it slightly differently. Copy the six lines of text that are shown, as you’ll need them. Hit enter twice to exit the wizard. My install showed the following (yours may be different):
-```
-LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/apache2/mod_passenger.so
-<IfModule mod_passenger.c>
-	PassengerRoot /var/lib/gems/1.9.1/gems/passenger-5.0.21
-	PassengerDefaultRuby /usr/bin/ruby1.9.1
-</IfModule>
-```
-The first line tells Apache the path to the shared object library to load the Phusion passenger module. We want to create a new file for this line. Create this file:
-```
-sudo nano /etc/apache2/mods-available/passenger.load
-```
-And paste the first line into that file. In my case, I pasted:
-```
-LoadModule passenger_module /var/lib/gems/1.9.1/gems/passenger-5.0.21/buildout/apache2/mod_passenger.so
-```
-The final 4 lines specify the configuration for Phusion Passenger. Create the correct file as follows:
-```
-sudo nano /etc/apache2/mods-available/passenger.conf
-```
-And paste the two content lines in. You do not need the `<IfModule>`tags In my case, I pasted:
-```
-PassengerRoot /var/lib/gems/1.9.1/gems/passenger-5.0.21
-PassengerDefaultRuby /usr/bin/ruby1.9.1
-```
-Note: yes, the lines above say ruby1.9.1, and we did install ruby 1.9.3. Ubuntu 12 does some folder redirection that makes this happen, but it doesn’t cause any issues.
 
-Enable the Passenger module:
+First install the Passenger PGP key and HTTPS support
+```
+sudo apt-key adv --keyserver hkp://keyserver.ubuntu.com:80 --recv-keys 561F9B9CAC40B2F7
+sudo apt-get install -y apt-transport-https ca-certificates
+```
+Add the Passenger repository and update
+```
+sudo sh -c 'echo deb https://oss-binaries.phusionpassenger.com/apt/passenger wily main > /etc/apt/sources.list.d/passenger.list'
+sudo apt-get update
+```
+Install Passenger
+```
+sudo apt-get install -y libapache2-mod-passenger
+```
+Enable the Passenger Apache module and restart Apache
 ```
 sudo a2enmod passenger
-sudo service apache2 restart
+$ sudo apache2ctl restart
+```
+Verify the Install
+```
+sudo /usr/bin/passenger-config validate-install
+ * Checking whether this Phusion Passenger install is in PATH... ✓
+ * Checking whether there are no other Phusion Passenger installations... ✓
 ```
 and then verify that it loaded (look for Passenger in the output):
 ```
